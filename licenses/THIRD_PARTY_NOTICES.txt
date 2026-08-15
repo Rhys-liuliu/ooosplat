@@ -1,0 +1,30 @@
+OOOSplat 0.2.0 — Third-party notices
+=====================================
+
+FFmpeg / FFprobe
+----------------
+Embedded runtime: BtbN win64 LGPL shared 8.1, actual version
+n8.1.2-34-g9b6c8969e0-20260812. The selected variant disables GPL and
+nonfree components (including libx264 and libx265). FFmpeg is licensed under
+the GNU Lesser General Public License v2.1 or later. Source and reproducible
+build scripts are available from https://github.com/BtbN/FFmpeg-Builds and
+https://ffmpeg.org/download.html. The complete configure string is available
+from `ffmpeg.exe -buildconf`.
+
+COLMAP
+------
+Release asset: colmap-x64-windows-nocuda.zip from the COLMAP 4.0.4 release.
+The binary reports 4.1.0.dev0, commit 5b76f53, without CUDA. COLMAP is
+distributed under the 3-clause BSD license. The full license text is included
+in COLMAP.bat inside the bundled COLMAP directory. Source:
+https://github.com/colmap/colmap/tree/5b76f53
+
+Brush
+-----
+Brush v0.3.0 is distributed under the Apache License, Version 2.0. Its LICENSE
+and README are included beside this notice. Source:
+https://github.com/ArthurBrussee/brush/tree/v0.3.0
+
+Exact archive and executable SHA-256 values are recorded in
+engines/manifest.json. The release build is blocked if required files are
+missing, modified, or if the COLMAP package contains CUDA runtime filenames.
