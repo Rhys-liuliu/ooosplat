@@ -2,7 +2,10 @@
 name = "ooo-splat"
 version = "0.3.0"
 description = "Local video-to-Gaussian-Splatting pipeline for Windows"
-authors = ["OOOSplat contributors"]
+authors = ["ooolabdev"]
+license = "Apache-2.0"
+repository = "https://github.com/ooolabdev/ooosplat"
+homepage = "https://github.com/ooolabdev/ooosplat"
 edition = "2021"
 default-run = "ooo-splat"
 

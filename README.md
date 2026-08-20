@@ -149,6 +149,9 @@ cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings
 
 # 校验内置引擎版本、哈希和 CPU/no-CUDA 策略
 npm run verify:engines
+
+# 校验第一方许可、第三方通知及安装包资源映射
+npm run verify:licenses
 ```
 
 ### 生成 Windows 安装包
@@ -216,4 +219,18 @@ cargo run --manifest-path src-tauri\Cargo.toml --bin splatstudio -- generate "D:
 
 ## 许可说明
 
-本项目打包的第三方组件分别遵循其自身许可证。完整通知以 [`licenses/THIRD_PARTY_NOTICES.txt`](licenses/THIRD_PARTY_NOTICES.txt)、各许可证文件及 [`engines/manifest.json`](engines/manifest.json) 为准。
+### 代码许可
+
+OOOSplat 的第一方代码及随附文档以 [Apache License 2.0](LICENSE) 发布。版权声明见 [NOTICE](NOTICE)。
+
+### 第三方组件
+
+FFmpeg / FFprobe、COLMAP 和 Brush 分别适用其自身许可证，不因与 OOOSplat 一同分发而改用 Apache-2.0。直接引擎的版本、来源、许可证和许可证正文入口见 [第三方通知](licenses/THIRD_PARTY_NOTICES.txt) 与 [引擎清单](engines/manifest.json)。该清单不表示已经完成 Qt、Boost、Ceres 等传递依赖的完整许可审计。
+
+### 品牌
+
+Apache-2.0 不授予 “OOOSplat” 名称、Logo、图标或其他视觉标识的商标使用权。真实引用、教程、截图、官方未修改版本分发及修改版命名规则见 [OOOSplat Trademark Policy](TRADEMARK_POLICY.md)。
+
+### 生成模型
+
+`final.ply` 等生成结果不会仅因使用 OOOSplat 而自动适用 Apache、GPL、LGPL 或其他随附软件许可证。该说明不判断模型著作权归属，也不授予输入素材或第三方内容的权利；完整边界见 [Generated Outputs](GENERATED_OUTPUTS.md)。
