@@ -1,8 +1,12 @@
 # OOOSplat
 
+[中文](README.md) | [English](README_EN.md)
+
 OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面应用。发布流程会将 FFmpeg、FFprobe、CPU 版 COLMAP 和 Brush 打包进安装程序，用户无需配置系统 `PATH` 或单独安装原生引擎。源码仓库不保存这些大型二进制文件，而是通过固定来源和 SHA-256 在构建前恢复。
 
 当前版本：**0.1.0**
+
+项目后续规划见 [OOOSplat Roadmap](ROADMAP.md)。
 
 > 当前交付目标是从视频生成并管理 `final.ply`。应用暂不包含 3D Viewer，生成结果需要使用其他支持 Gaussian Splatting PLY 的工具查看。
 
@@ -216,6 +220,14 @@ cargo run --manifest-path src-tauri\Cargo.toml --bin splatstudio -- generate "D:
 - 前端：React 19、TypeScript、Vite、Zustand
 - 原生流水线：FFmpeg / FFprobe、COLMAP、Brush
 - Windows 进程管理：Job Object
+
+## 🤝 参与贡献
+
+欢迎参与贡献！
+
+无论是 Bug 修复、Linux/macOS 支持、UI 改进、文档，还是新的 Gaussian Splatting 功能，我们都欢迎你的帮助。
+
+请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何开始。
 
 ## 许可说明
 
