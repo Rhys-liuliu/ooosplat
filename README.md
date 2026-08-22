@@ -1,5 +1,11 @@
 # OOOSplat
 
+[中文](README.md) | [English](README_EN.md)
+
+<p align="center">
+  <img src="assets/app-icon.svg" alt="OOOSplat Logo" width="180">
+</p>
+
 OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面应用。发布流程会将 FFmpeg、FFprobe、COLMAP（CUDA 构建）和 Brush 打包进安装程序，用户无需配置系统 `PATH` 或单独安装原生引擎。源码仓库不保存这些大型二进制文件，而是通过固定来源和 SHA-256 在构建前恢复。
 
 当前版本：**0.1.0**
@@ -11,7 +17,7 @@ OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面
 - 从 MP4、MOV 视频创建 Gaussian Splatting 项目。
 - 自动完成视频分析、均匀抽帧、特征提取、顺序匹配、相机重建、Brush 训练和 PLY 发布。
 - FFmpeg、FFprobe、COLMAP（CUDA 构建）和 Brush 随安装包提供。
-- COLMAP 特征提取与匹配可在 CPU 与 GPU 之间手动切换，选择会持久化。
+- COLMAP 会自动检查内置 CUDA 运行时、NVIDIA 驱动版本和显卡 Compute Capability，满足要求时使用 GPU 加速特征提取与匹配，否则自动回退到 CPU。
 - 实时显示处理阶段、引擎输出、关键计数、累计耗时和最多 500 条界面日志。
 - 原始进程输出完整写入项目的 `logs` 目录。
 - 支持取消任务，并通过 Windows Job Object 终止整个子进程树。
@@ -28,7 +34,7 @@ OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面
   │
   ├─ FFprobe：读取时长、分辨率、帧率和总帧数
   ├─ FFmpeg：按照质量档位均匀抽取画面
-  ├─ COLMAP：按所选后端（CPU 或 GPU）进行特征提取与顺序匹配
+  ├─ COLMAP：自动选择 CPU 或 CUDA GPU 进行特征提取与顺序匹配
   ├─ COLMAP：增量重建并验证注册率和三维点
   ├─ Brush：使用可用 GPU 训练 Gaussian Splats
   └─ 校验 PLY 后原子发布为 final.ply
@@ -41,11 +47,11 @@ COLMAP 注册图像比例低于 50% 时任务停止；50%–80% 时给出质量�
 - Windows 10 或 Windows 11，x64。
 - 支持 WebView2 Runtime。
 - Brush 训练需要可用的 GPU 图形后端，建议使用独立显卡。
-- COLMAP 的 GPU 加速模式需要 NVIDIA 显卡及对应驱动；没有 NVIDIA 显卡时应选择 CPU 模式。
+- COLMAP 的 CUDA 加速需要 NVIDIA 显卡、Windows 驱动 528.33 或更高版本，以及 Compute Capability 5.0 或更高版本；不满足要求时程序会自动使用 CPU，无需用户配置。
 - 项目磁盘需要容纳源视频副本、抽帧图像、COLMAP 数据、Brush 中间文件和最终 PLY。长视频或精细档位可能占用大量空间。
 - 安装模式为整机安装，安装时可能需要管理员权限。
 
-COLMAP 使用 CUDA 构建，可在 CPU 与 GPU 之间手动切换；Brush 训练使用可用 GPU。
+COLMAP 使用同时支持 CPU 与 CUDA GPU 的构建，运行前会自动选择可用后端；Brush 训练使用可用 GPU 图形后端，二者的 GPU 检测与运行机制相互独立。
 
 ## 安装与使用
 
@@ -54,9 +60,8 @@ COLMAP 使用 CUDA 构建，可在 CPU 与 GPU 之间手动切换；Brush 训练
 3. 在“01 创建新任务”中选择输入视频。
 4. 选择项目根目录；程序会记住上次使用的位置。
 5. 选择“快速”“均衡”或“精细”档位。
-6. 选择“COLMAP 加速”为 CPU 或 GPU；程序会记住上次选择。GPU 模式需要 NVIDIA 显卡和驱动。
-7. 点击“开始生成”，在左侧查看实时阶段、指标和日志。
-8. 完成后，在“02 历史任务”中查看项目路径、PLY 大小、Splat 数量、生成日期和耗时。
+6. 查看自动检测到的 COLMAP 加速状态及原因，然后点击“开始生成”。
+7. 在左侧查看实时阶段、指标和日志；完成后，在“02 历史任务”中查看项目路径、PLY 大小、Splat 数量、生成日期和耗时。
 
 使用提示：
 
@@ -107,7 +112,7 @@ COLMAP 使用 CUDA 构建，可在 CPU 与 GPU 之间手动切换；Brush 训练
 | 引擎 | 固定版本/构建 | 用途 |
 | --- | --- | --- |
 | FFmpeg / FFprobe | 8.1 系列 Windows x64 LGPL shared | 视频分析与抽帧 |
-| COLMAP | 4.0.4 发布资产，CUDA 构建 | 特征、匹配与相机重建（CPU/GPU 可选） |
+| COLMAP | 4.0.4 发布资产，CUDA 构建 | 自动选择 CPU/CUDA GPU 完成特征与匹配，并执行相机重建 |
 | Brush | v0.3.0 Windows x64 | Gaussian Splatting 训练与 PLY 导出 |
 
 详细来源、实际版本、下载与安装规则、压缩包哈希和可执行文件哈希记录在 [`engines/manifest.json`](engines/manifest.json)。大型引擎文件不会提交到 Git；开发者通过 `npm run setup:engines` 下载并恢复到本地。Release 打包前会运行校验；文件缺失、哈希变化、COLMAP CUDA 运行时缺失或 Brush CLI 参数不符合预期时，打包会被阻止。

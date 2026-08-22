@@ -2,7 +2,11 @@
 
 [中文](README.md) | [English](README_EN.md)
 
-OOOSplat is a local Windows desktop application that converts video into 3D Gaussian Splatting projects. Its release package bundles FFmpeg, FFprobe, CPU COLMAP, and Brush, so users do not need to configure the system `PATH` or install native engines separately. Large engine binaries are not stored in the source repository; the build setup restores them from pinned sources and verifies their SHA-256 hashes.
+<p align="center">
+  <img src="assets/app-icon.svg" alt="OOOSplat Logo" width="180">
+</p>
+
+OOOSplat is a local Windows desktop application that converts video into 3D Gaussian Splatting projects. Its release package bundles FFmpeg, FFprobe, a CUDA-enabled COLMAP build, and Brush, so users do not need to configure the system `PATH` or install native engines separately. Large engine binaries are not stored in the source repository; the build setup restores them from pinned sources and verifies their SHA-256 hashes.
 
 Current version: **0.1.0**
 
@@ -14,7 +18,8 @@ See the [OOOSplat Roadmap](ROADMAP.md) for planned work.
 
 - Create Gaussian Splatting projects from MP4 and MOV videos.
 - Automatically run video analysis, uniform frame extraction, feature extraction, sequential matching, camera reconstruction, Brush training, and PLY publishing.
-- Bundle FFmpeg, FFprobe, CPU/no-CUDA COLMAP, and Brush with the installer.
+- Bundle FFmpeg, FFprobe, COLMAP (CUDA build), and Brush with the installer.
+- Automatically check the bundled CUDA runtime, NVIDIA driver version, and GPU Compute Capability. COLMAP uses GPU acceleration for feature extraction and matching when the requirements are met, and otherwise falls back to CPU.
 - Show processing stages, engine output, key counters, elapsed time, and up to 500 UI log entries in real time.
 - Write complete raw process output to the project `logs` directory.
 - Cancel tasks and terminate the full child-process tree with a Windows Job Object.
@@ -31,7 +36,7 @@ Input video
   │
   ├─ FFprobe: read duration, resolution, frame rate, and frame count
   ├─ FFmpeg: extract frames uniformly for the selected quality preset
-  ├─ COLMAP: CPU feature extraction and sequential matching
+  ├─ COLMAP: automatically select CPU or CUDA GPU for feature extraction and sequential matching
   ├─ COLMAP: incremental reconstruction and registration validation
   ├─ Brush: train Gaussian Splats with an available GPU backend
   └─ Validate the PLY and atomically publish final.ply
@@ -44,10 +49,11 @@ The task stops when COLMAP registers fewer than 50% of the input images. A 50%�
 - Windows 10 or Windows 11, x64.
 - WebView2 Runtime support.
 - An available GPU graphics backend for Brush training; a discrete GPU is recommended.
+- COLMAP CUDA acceleration requires an NVIDIA GPU, Windows driver 528.33 or newer, and Compute Capability 5.0 or higher. OOOSplat automatically uses CPU when these requirements are not met; no manual configuration is required.
 - Enough disk space for a source-video copy, extracted frames, COLMAP data, Brush intermediate files, and the final PLY. Long videos and higher quality presets can require substantial space.
 - The installer uses a per-machine installation and may require administrator privileges.
 
-OOOSplat strictly uses a CPU/no-CUDA COLMAP build. Brush training still uses an available GPU.
+The bundled COLMAP build supports both CPU and CUDA GPU execution. OOOSplat automatically selects the available backend before each task. Brush uses its own available GPU graphics backend; its GPU detection and runtime are independent of COLMAP.
 
 ## Installation and Use
 
@@ -56,8 +62,8 @@ OOOSplat strictly uses a CPU/no-CUDA COLMAP build. Brush training still uses an 
 3. Select an input video under “01 Create New Task.”
 4. Choose the projects root; OOOSplat remembers the last location.
 5. Select the Fast, Balanced, or Detailed quality preset.
-6. Select “Start Generation” and follow live stages, metrics, and logs on the left.
-7. When processing finishes, use “02 Task History” to view the project path, PLY size, Splat count, generation date, and elapsed time.
+6. Review the automatically detected COLMAP acceleration status and its explanation, then select “Start Generation.”
+7. Follow live stages, metrics, and logs on the left. When processing finishes, use “02 Task History” to view the project path, PLY size, Splat count, generation date, and elapsed time.
 
 Usage notes:
 
@@ -108,10 +114,10 @@ Application settings and the project index are stored in:
 | Engine | Pinned version/build | Purpose |
 | --- | --- | --- |
 | FFmpeg / FFprobe | 8.1 series, Windows x64 LGPL shared | Video analysis and frame extraction |
-| COLMAP | 4.0.4 release asset, CPU/no-CUDA | Features, matching, and camera reconstruction |
+| COLMAP | 4.0.4 release asset, CUDA build | Automatically select CPU/CUDA GPU for features and matching, then perform camera reconstruction |
 | Brush | v0.3.0, Windows x64 | Gaussian Splatting training and PLY export |
 
-Sources, exact versions, download and installation rules, archive hashes, and executable hashes are recorded in [`engines/manifest.json`](engines/manifest.json). Large engine files are not committed to Git; developers restore them with `npm run setup:engines`. Release builds verify the runtimes and stop if files are missing or modified, if COLMAP contains CUDA runtime files, or if the Brush CLI does not expose the expected arguments.
+Sources, exact versions, download and installation rules, archive hashes, and executable hashes are recorded in [`engines/manifest.json`](engines/manifest.json). Large engine files are not committed to Git; developers restore them with `npm run setup:engines`. Release builds verify the runtimes and stop if files are missing or modified, if the COLMAP CUDA runtime is incomplete, or if the Brush CLI does not expose the expected arguments.
 
 Third-party licenses and notices are in [`licenses/`](licenses/):
 
@@ -151,7 +157,7 @@ cargo test --manifest-path src-tauri\Cargo.toml
 # Rust static checks
 cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings
 
-# Bundled engine version, hash, and CPU/no-CUDA checks
+# Bundled engine version, hash, and CUDA runtime checks
 npm run verify:engines
 
 # First-party and third-party license checks
@@ -197,9 +203,9 @@ For development or diagnostics, use the global `--engine-dir <path>` argument or
 
 ## FAQ
 
-### Why does COLMAP not use the GPU?
+### Why is COLMAP using the CPU instead of the GPU?
 
-To reduce installation and runtime dependencies, OOOSplat pins a CPU/no-CUDA COLMAP build. The GPU is mainly used for Brush training.
+OOOSplat enables COLMAP GPU acceleration only when the bundled CUDA runtime is healthy and it can confirm an NVIDIA driver version of at least 528.33 and Compute Capability 5.0 or higher. If detection fails or a requirement is not met, COLMAP automatically falls back to CPU and the application shows the specific reason. Brush GPU availability is detected separately.
 
 ### Why does a task stop after camera reconstruction?
 
