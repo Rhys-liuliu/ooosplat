@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README_EN.md)
 
 <p align="center">
-  <img src="assets/app-icon.svg" alt="OOOSplat Logo" width="180">
+  <img src="assets/readme-logo.svg" alt="OOOSplat Logo" width="180">
 </p>
 
 OOOSplat is a local Windows desktop application that converts video into 3D Gaussian Splatting projects. Its release package bundles FFmpeg, FFprobe, a CUDA-enabled COLMAP build, and Brush, so users do not need to configure the system `PATH` or install native engines separately. Large engine binaries are not stored in the source repository; the build setup restores them from pinned sources and verifies their SHA-256 hashes.

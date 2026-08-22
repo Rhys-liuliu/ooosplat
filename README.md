@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README_EN.md)
 
 <p align="center">
-  <img src="assets/app-icon.svg" alt="OOOSplat Logo" width="180">
+  <img src="assets/readme-logo.svg" alt="OOOSplat Logo" width="180">
 </p>
 
 OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面应用。发布流程会将 FFmpeg、FFprobe、COLMAP（CUDA 构建）和 Brush 打包进安装程序，用户无需配置系统 `PATH` 或单独安装原生引擎。源码仓库不保存这些大型二进制文件，而是通过固定来源和 SHA-256 在构建前恢复。
