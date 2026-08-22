@@ -1,4 +1,5 @@
 pub mod ply;
+pub mod splat_transform;
 pub mod validator;
 
 pub use validator::{ReconstructionQuality, ReconstructionReport, ReconstructionValidator};

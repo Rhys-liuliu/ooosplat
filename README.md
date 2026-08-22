@@ -10,7 +10,7 @@ OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面
 
 当前版本：**0.1.0**
 
-> 当前交付目标是从视频生成并管理 `final.ply`。应用暂不包含 3D Viewer，生成结果需要使用其他支持 Gaussian Splatting PLY 的工具查看。
+> 当前版本可从视频生成并管理 `final.ply`，并在应用内完成 Gaussian Splat 预览、整体 Transform 编辑和非破坏式导出。
 
 ## 主要功能
 
@@ -23,6 +23,9 @@ OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面
 - 支持取消任务，并通过 Windows Job Object 终止整个子进程树。
 - 支持自定义项目根目录，默认位置为 `Documents\SplatStudio\Projects`。
 - 自动记录已完成、失败、中断和取消的历史任务。
+- 在“03 预览”中直接加载历史项目的 `.ply`，支持 Orbit、Pan、Zoom、Fit View 和 Reset View。
+- 支持整个 Gaussian 模型的 Move、Rotate、Uniform Scale、属性面板同步以及 Ctrl+Z / Ctrl+Shift+Z。
+- Transform 自动保存到 `project.json`；导出生成 `edited.ply`、`edited-2.ply` 等新文件，不覆盖原始 `final.ply`。
 - 可在资源管理器中定位 `final.ply`，或将整个项目移入 Windows 回收站。
 - 可拖动中央分界线调整左右面板宽度；右下角支持 80%–140% 整体界面缩放。
 - 支持中文、空格、长文件名和 UNC 项目路径。
@@ -61,7 +64,8 @@ COLMAP 使用同时支持 CPU 与 CUDA GPU 的构建，运行前会自动选择�
 4. 选择项目根目录；程序会记住上次使用的位置。
 5. 选择“快速”“均衡”或“精细”档位。
 6. 查看自动检测到的 COLMAP 加速状态及原因，然后点击“开始生成”。
-7. 在左侧查看实时阶段、指标和日志；完成后，在“02 历史任务”中查看项目路径、PLY 大小、Splat 数量、生成日期和耗时。
+7. 在左侧查看实时阶段、指标和日志；完成后，在“02 历史任务”中查看项目并点击“预览”。
+8. 在“03 预览”中浏览或调整模型，Transform 会自动保存；点击“Export Gaussian”生成新的 edited PLY。
 
 使用提示：
 
@@ -88,6 +92,8 @@ COLMAP 使用同时支持 CPU 与 CUDA GPU 的构建，运行前会自动选择�
 <项目根目录>\<yyyyMMdd-HHmmss_视频名>\
   final.ply             最终 Gaussian Splatting 文件
   project.json          项目元数据与结果指标
+  edited.ply            首次非破坏式 Transform 导出（可选）
+  edited-2.ply          后续导出自动编号（可选）
   state.json            流水线状态
   source\
     input.<ext>         源视频副本
@@ -215,13 +221,14 @@ cargo run --manifest-path src-tauri\Cargo.toml --bin splatstudio -- generate "D:
 
 ### 可以直接在应用中查看 final.ply 吗？
 
-暂不支持。本版本提供生成、项目管理和资源管理器定位，不包含 3D 渲染预览。
+可以。在“02 历史任务”中选择已完成项目并点击“预览”，即可在“03 预览”中浏览 `.ply`，调整整个模型的位置、旋转和等比缩放。当前不支持单个 Gaussian 选择、删除、裁剪或清理；`.sog` 和 `.spz` 也尚未开放。
 
 ## 技术栈
 
 - 桌面框架：Tauri 2
 - 后端：Rust、Tokio
 - 前端：React 19、TypeScript、Vite、Zustand
+- Gaussian 预览：PlayCanvas Engine、PlayCanvas React
 - 原生流水线：FFmpeg / FFprobe、COLMAP、Brush
 - Windows 进程管理：Job Object
 
@@ -233,7 +240,7 @@ OOOSplat 的第一方代码及随附文档以 [Apache License 2.0](LICENSE) 发�
 
 ### 第三方组件
 
-FFmpeg / FFprobe、COLMAP 和 Brush 分别适用其自身许可证，不因与 OOOSplat 一同分发而改用 Apache-2.0。直接引擎的版本、来源、许可证和许可证正文入口见 [第三方通知](licenses/THIRD_PARTY_NOTICES.txt) 与 [引擎清单](engines/manifest.json)。该清单不表示已经完成 Qt、Boost、Ceres 等传递依赖的完整许可审计。
+FFmpeg / FFprobe、COLMAP、Brush 和 PlayCanvas 组件分别适用其自身许可证，不因与 OOOSplat 一同分发而改用 Apache-2.0。直接组件的版本、来源、许可证和许可证正文入口见 [第三方通知](licenses/THIRD_PARTY_NOTICES.txt) 与 [引擎清单](engines/manifest.json)。该清单不表示已经完成 Qt、Boost、Ceres 等传递依赖的完整许可审计。
 
 ### 品牌
 

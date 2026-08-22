@@ -19,7 +19,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; min-width: 820px; height: 100%; margin: 0; overflow: hidden; }
+html, body, #root { width: 100%; min-width: 1100px; height: 100%; margin: 0; overflow: hidden; }
 body { background: var(--surface); font-size: 14px; }
 button { font: inherit; }
 button:focus-visible { outline: 2px solid rgba(30, 92, 255, 0.45); outline-offset: 2px; }
@@ -52,10 +52,11 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .status-light { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(45,153,101,.1); }
 .status-light.warning { background: var(--amber); box-shadow: 0 0 0 4px rgba(199,131,20,.12); }
 
-.workspace { height: calc(100% - 66px); display: grid; grid-template-columns: var(--left-pane-width, 44%) 9px minmax(0, 1fr); }
-.control-pane, .projects-pane { min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #b9c1cc transparent; }
+.workspace { height: calc(100% - 66px); display: grid; grid-template-columns: var(--create-pane-width, 30%) 9px var(--history-pane-width, 25%) 9px minmax(0, 1fr); }
+.control-pane, .projects-pane, .preview-pane { min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #b9c1cc transparent; }
 .control-pane { padding: 30px clamp(28px, 3.3vw, 52px) 44px; background: #f7f8fa; }
-.projects-pane { padding: 30px clamp(30px, 3.8vw, 58px) 48px; background: #eef1f5; }
+.projects-pane { padding: 30px clamp(20px, 2.3vw, 38px) 48px; background: #eef1f5; }
+.preview-pane { position: relative; display: flex; flex-direction: column; overflow: hidden; background: #e7ebf1; }
 .pane-resizer {
   position: relative;
   z-index: 5;
@@ -67,6 +68,11 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   cursor: col-resize;
   touch-action: none;
 }
+.history-resizer { background: linear-gradient(90deg, #eef1f5 0 50%, #e7ebf1 50% 100%); }
+.workspace.preview-expanded { grid-template-columns: minmax(0, 1fr); }
+.workspace.preview-expanded > .control-pane,
+.workspace.preview-expanded > .projects-pane,
+.workspace.preview-expanded > .pane-resizer { display: none; }
 .pane-resizer span { width: 1px; height: 100%; background: var(--line-dark); transition: width 120ms, background 120ms; }
 .pane-resizer:hover span, .pane-resizer:focus-visible span, .app-shell.resizing .pane-resizer span { width: 3px; background: var(--blue); }
 .pane-resizer:focus-visible { outline: 0; }
@@ -166,7 +172,8 @@ h1, h2 { margin: 0; font: 650 29px/1 "Bahnschrift", "Microsoft YaHei UI", sans-s
 .project-group.unfinished { margin-top: 34px; }
 .group-heading { height: 38px; display: flex; align-items: center; justify-content: space-between; color: #4b5669; border-bottom: 1px solid var(--line-dark); font-size: 12px; font-weight: 700; }
 .group-heading small { color: var(--faint); font-weight: 400; }
-.project-row { padding: 19px 0 15px; border-bottom: 1px solid var(--line); }
+.project-row { padding: 19px 0 15px; border-bottom: 1px solid var(--line); transition: background 140ms, box-shadow 140ms; }
+.project-row.selected { margin: 0 -12px; padding-left: 12px; padding-right: 12px; background: #e7edff; box-shadow: inset 2px 0 var(--blue); }
 .project-row-main { min-width: 0; }
 .project-title-line { min-width: 0; gap: 8px; }
 .project-title-line strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 650 15px/1.2 "Bahnschrift", "Microsoft YaHei UI", sans-serif; }
@@ -178,16 +185,64 @@ h1, h2 { margin: 0; font: 650 29px/1 "Bahnschrift", "Microsoft YaHei UI", sans-s
 .status-copy { flex: 0 0 auto; margin-left: auto; color: var(--faint); font-size: 10px; }
 .project-path { margin: 8px 0 0 14px; overflow: hidden; color: var(--muted); font: 11px/1.45 "Cascadia Mono", "Microsoft YaHei UI", monospace; text-overflow: ellipsis; white-space: nowrap; }
 .project-failure { margin: 8px 0 0 14px; color: var(--red); font-size: 11px; line-height: 1.5; }
-.project-stats { margin: 15px 0 0; display: grid; grid-template-columns: .8fr 1fr 1.55fr 1fr .65fr; }
+.project-stats { margin: 15px 0 0; display: grid; grid-template-columns: .85fr 1.6fr 1fr .7fr; }
 .project-stats > div { min-width: 0; padding: 0 10px; display: grid; gap: 5px; border-right: 1px solid var(--line); }
 .project-stats > div:first-child { padding-left: 14px; }
 .project-stats > div:last-child { border: 0; }
 .project-stats dt { color: var(--faint); font-size: 9px; letter-spacing: .05em; }
 .project-stats dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 11px/1.25 "Cascadia Mono", "Microsoft YaHei UI", monospace; }
-.project-actions { margin: 13px 0 0 14px; gap: 18px; }
+.project-actions { margin: 13px 0 0 14px; gap: 14px; flex-wrap: wrap; }
 .project-actions button { padding: 4px 0; display: flex; align-items: center; gap: 5px; color: #536078; background: transparent; border: 0; cursor: pointer; font-size: 10px; }
 .project-actions button:hover:not(:disabled) { color: var(--blue); }
+.project-actions .preview-link { color: var(--blue); font-weight: 700; }
 .project-actions .danger-link:hover:not(:disabled) { color: var(--red); }
+
+.preview-pane-heading { flex: 0 0 auto; margin: 0; padding: 30px 26px; border-bottom: 1px solid var(--line-dark); }
+.preview-expand, .preview-header-actions button {
+  min-height: 31px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  color: #526078; background: transparent; border: 1px solid var(--line-dark); cursor: pointer; font-size: 10px; font-weight: 650;
+}
+.preview-empty { flex: 1; min-height: 300px; padding: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8994a5; text-align: center; }
+.preview-empty strong { margin-top: 14px; color: #475367; font-size: 14px; }
+.preview-empty p { max-width: 330px; margin: 8px 0 0; font-size: 11px; line-height: 1.7; }
+.preview-header { flex: 0 0 auto; min-height: 66px; padding: 10px 14px 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; background: #f4f6f9; border-bottom: 1px solid var(--line-dark); }
+.preview-header > div:first-child { min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 10px; row-gap: 5px; }
+.preview-header > div:first-child > span { color: var(--blue); font: 700 9px/1 "Cascadia Mono", monospace; letter-spacing: .08em; }
+.preview-header > div:first-child > strong { font: 650 16px/1 "Bahnschrift", "Segoe UI", sans-serif; }
+.preview-header > div:first-child > small { grid-column: 1 / -1; max-width: 360px; overflow: hidden; color: var(--faint); font: 9px/1.2 "Cascadia Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+.preview-header-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
+.preview-header-actions button:hover:not(:disabled), .preview-expand:hover:not(:disabled) { color: var(--blue); border-color: #9eb6fb; background: #edf2ff; }
+.preview-resource-note { flex: 0 0 auto; padding: 7px 14px; color: #765112; background: #fff6df; border-bottom: 1px solid #ead6a4; font-size: 10px; line-height: 1.4; }
+.preview-editor { flex: 1; min-height: 0; display: grid; grid-template-columns: 62px minmax(0, 1fr) 205px; }
+.gaussian-tools { padding: 8px 0; display: flex; flex-direction: column; background: #f0f3f7; border-right: 1px solid var(--line-dark); }
+.gaussian-tools button { height: 54px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: #687386; background: transparent; border: 0; border-left: 2px solid transparent; cursor: pointer; font-size: 9px; }
+.gaussian-tools button:hover, .gaussian-tools button.active { color: var(--blue); background: #e5ebfa; border-left-color: var(--blue); }
+.gaussian-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #0e1117; }
+.gaussian-canvas, .gaussian-viewport canvas { display: block; width: 100% !important; height: 100% !important; outline: none; touch-action: none; }
+.viewport-overlay { position: absolute; inset: 0; z-index: 4; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; color: #dae3f1; background: rgba(14, 17, 23, .9); text-align: center; }
+.viewport-overlay strong { font-size: 12px; }
+.viewport-overlay span { color: #82a6ff; font: 650 11px/1 "Cascadia Mono", monospace; }
+.viewport-overlay.error { color: #ffc1bc; }
+.viewport-overlay.error p { max-width: 360px; margin: 0; font-size: 10px; line-height: 1.6; }
+.viewport-overlay.error button { padding: 6px 12px; color: inherit; background: transparent; border: 1px solid currentColor; cursor: pointer; font-size: 10px; }
+.transform-panel { min-width: 0; overflow-y: auto; background: #f2f4f7; border-left: 1px solid var(--line-dark); }
+.transform-panel-heading { height: 45px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.transform-panel-heading strong { font-size: 12px; }
+.transform-panel-heading small { color: var(--faint); font: 650 8px/1 "Cascadia Mono", monospace; letter-spacing: .08em; }
+.transform-panel section { padding: 13px; border-bottom: 1px solid var(--line); }
+.transform-panel h4 { margin: 0 0 9px; color: #515d70; font-size: 10px; }
+.transform-panel section > p { margin: 7px 0 0 23px; color: var(--faint); font: 8px/1 "Cascadia Mono", monospace; letter-spacing: .08em; }
+.transform-fields { display: grid; gap: 6px; }
+.transform-field { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 5px; color: #7b8698; font: 650 9px/1 "Cascadia Mono", monospace; }
+.transform-field input { width: 100%; height: 27px; padding: 0 7px; color: #273247; background: #e9edf2; border: 1px solid #ccd3dd; font: 10px/1 "Cascadia Mono", monospace; }
+.transform-field input:focus { outline: 0; border-color: var(--blue); background: #f7f9ff; }
+.preview-statusbar { flex: 0 0 auto; min-height: 32px; padding: 5px 10px; display: flex; align-items: center; gap: 13px; overflow-x: auto; color: #aeb9ca; background: #202735; font: 9px/1.25 "Cascadia Mono", "Microsoft YaHei UI", monospace; white-space: nowrap; }
+.preview-statusbar span { display: inline-flex; align-items: center; gap: 5px; }
+.preview-statusbar b { color: #6f91df; font-size: 8px; letter-spacing: .06em; }
+.preview-statusbar .save-state.saved { color: #89d2ac; }
+.preview-statusbar .save-state.error { color: #ffaaa1; }
+.preview-statusbar .export-result { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.preview-save-error { flex: 0 0 auto; padding: 6px 10px; color: #8b2e28; background: #ffe9e6; border-top: 1px solid #e5b6b1; font-size: 9px; }
 .zoom-dock {
   position: fixed;
   right: 18px;

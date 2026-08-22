@@ -1,8 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import type { ColmapAccelerationStatus, EngineStatus, FramePlan, PipelineEvent, PipelineResult, ProjectOverview, ProjectSummary, Quality, VideoInfo } from "../types/pipeline";
+import type { ColmapAccelerationStatus, EngineStatus, FramePlan, GaussianExportProgress, GaussianExportResult, GaussianPreviewDescriptor, GaussianTransform, PipelineEvent, PipelineResult, ProjectOverview, ProjectSummary, Quality, VideoInfo } from "../types/pipeline";
 
 const inTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -27,11 +27,20 @@ export async function startPipeline(path: string, quality: Quality, projectsRoot
 export async function cancelPipeline(): Promise<void> { return invoke("cancel_pipeline"); }
 export async function onPipelineEvent(handler: (event: PipelineEvent) => void): Promise<UnlistenFn> { return listen<PipelineEvent>("pipeline-event", ({ payload }) => handler(payload)); }
 
+export async function prepareGaussianPreview(projectId: string): Promise<GaussianPreviewDescriptor & { assetUrl: string }> {
+  const descriptor = await invoke<GaussianPreviewDescriptor>("prepare_gaussian_preview", { projectId });
+  return { ...descriptor, assetUrl: convertFileSrc(descriptor.modelPath) };
+}
+export async function releaseGaussianPreview(projectId: string): Promise<void> { return invoke("release_gaussian_preview", { projectId }); }
+export async function saveGaussianTransform(projectId: string, transform: GaussianTransform): Promise<GaussianTransform> { return invoke("save_gaussian_transform", { projectId, transform }); }
+export async function exportTransformedGaussian(projectId: string, transform: GaussianTransform): Promise<GaussianExportResult> { return invoke("export_transformed_gaussian", { projectId, transform }); }
+export async function onGaussianExportProgress(handler: (event: GaussianExportProgress) => void): Promise<UnlistenFn> { return listen<GaussianExportProgress>("gaussian-export-progress", ({ payload }) => handler(payload)); }
+
 export async function revealProject(project: ProjectSummary): Promise<void> {
   await revealItemInDir(project.finalPly ?? project.projectPath);
 }
 
-export async function confirmAndDeleteProject(project: ProjectSummary): Promise<boolean> {
+export async function confirmAndDeleteProject(project: ProjectSummary, beforeDelete?: () => void | Promise<void>): Promise<boolean> {
   const accepted = await confirm(`将“${project.name}”及其中的源视频、抽帧、COLMAP、Brush 和日志全部移入回收站。\n\n此操作无法在应用内撤销。`, {
     title: "删除项目",
     kind: "warning",
@@ -39,6 +48,7 @@ export async function confirmAndDeleteProject(project: ProjectSummary): Promise<
     cancelLabel: "取消",
   });
   if (!accepted) return false;
+  await beforeDelete?.();
   await invoke("delete_project", { projectId: project.id });
   return true;
 }

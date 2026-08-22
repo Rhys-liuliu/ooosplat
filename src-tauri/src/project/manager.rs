@@ -101,7 +101,7 @@ impl ProjectManager {
         tokio::fs::copy(source_video, &stored_source).await?;
         let now = Utc::now();
         let metadata = ProjectMetadata {
-            schema_version: 2,
+            schema_version: crate::project::metadata::schema_version(),
             app_id: PROJECT_APP_ID.into(),
             id,
             name: base,
@@ -116,6 +116,8 @@ impl ProjectManager {
             output_path: None,
             output: None,
             failure_message: None,
+            model: "final.ply".into(),
+            transform: Default::default(),
         };
         let metadata_path = project.join("project.json");
         atomic_write_json(&metadata_path, &metadata).await?;

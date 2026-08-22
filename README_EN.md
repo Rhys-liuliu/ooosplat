@@ -12,7 +12,7 @@ Current version: **0.1.0**
 
 See the [OOOSplat Roadmap](ROADMAP.md) for planned work.
 
-> The current release focuses on generating and managing `final.ply` from video. It does not yet include a 3D viewer, so generated results must be opened with another tool that supports Gaussian Splatting PLY files.
+> The current release generates and manages `final.ply`, previews Gaussian Splats inside OOOSplat, edits whole-model transforms, and exports non-destructive transformed copies.
 
 ## Key Features
 
@@ -25,6 +25,9 @@ See the [OOOSplat Roadmap](ROADMAP.md) for planned work.
 - Cancel tasks and terminate the full child-process tree with a Windows Job Object.
 - Choose a custom projects root, defaulting to `Documents\SplatStudio\Projects`.
 - Track completed, failed, interrupted, and cancelled tasks.
+- Preview completed `.ply` projects under “03 Preview” with Orbit, Pan, Zoom, Fit View, and Reset View.
+- Move, rotate, and uniformly scale the complete Gaussian model with synchronized gizmos and numeric fields, including Ctrl+Z / Ctrl+Shift+Z.
+- Persist transforms in `project.json` and export numbered `edited.ply` copies without overwriting `final.ply`.
 - Reveal `final.ply` in File Explorer or move the complete project to the Windows Recycle Bin.
 - Resize the left and right panels by dragging the divider, and scale the full interface from 80% to 140%.
 - Support Chinese characters, spaces, long file names, and UNC project paths.
@@ -63,7 +66,8 @@ The bundled COLMAP build supports both CPU and CUDA GPU execution. OOOSplat auto
 4. Choose the projects root; OOOSplat remembers the last location.
 5. Select the Fast, Balanced, or Detailed quality preset.
 6. Review the automatically detected COLMAP acceleration status and its explanation, then select “Start Generation.”
-7. Follow live stages, metrics, and logs on the left. When processing finishes, use “02 Task History” to view the project path, PLY size, Splat count, generation date, and elapsed time.
+7. Follow live stages, metrics, and logs on the left. When processing finishes, select “Preview” under “02 Task History.”
+8. Browse or transform the model under “03 Preview.” Changes are saved automatically; “Export Gaussian” writes a new edited PLY.
 
 Usage notes:
 
@@ -90,6 +94,8 @@ Each generation creates a separate directory under the projects root:
 <projects-root>\<yyyyMMdd-HHmmss_video-name>\
   final.ply             Final Gaussian Splatting file
   project.json          Project metadata and result metrics
+  edited.ply            First optional non-destructive transform export
+  edited-2.ply          Later exports are automatically numbered
   state.json            Pipeline state
   source\
     input.<ext>         Source-video copy
@@ -217,13 +223,14 @@ Each project keeps a source-video copy, extracted frames, COLMAP data, and Brush
 
 ### Can I view final.ply directly in OOOSplat?
 
-Not yet. This release provides generation, project management, and File Explorer integration, but no 3D rendering preview.
+Yes. Select “Preview” on a completed project in “02 Task History” to browse its `.ply` under “03 Preview” and edit the whole model's position, rotation, and uniform scale. Per-Gaussian selection, deletion, cropping, cleanup, `.sog`, and `.spz` are not part of this first preview release.
 
 ## Technology
 
 - Desktop framework: Tauri 2
 - Backend: Rust and Tokio
 - Frontend: React 19, TypeScript, Vite, and Zustand
+- Gaussian preview: PlayCanvas Engine and PlayCanvas React
 - Native pipeline: FFmpeg / FFprobe, COLMAP, and Brush
 - Windows process management: Job Object
 
@@ -244,7 +251,7 @@ OOOSplat first-party code and accompanying documentation are released under the 
 
 ### Third-party Components
 
-FFmpeg / FFprobe, COLMAP, and Brush remain subject to their own licenses and do not become Apache-2.0 software merely because they are distributed with OOOSplat. See [Third-party Notices](licenses/THIRD_PARTY_NOTICES.txt) and the [Engine Manifest](engines/manifest.json) for the directly bundled engines, versions, sources, and license files. This list is not represented as a complete audit of transitive dependencies such as Qt, Boost, or Ceres.
+FFmpeg / FFprobe, COLMAP, Brush, and PlayCanvas components remain subject to their own licenses and do not become Apache-2.0 software merely because they are distributed with OOOSplat. See [Third-party Notices](licenses/THIRD_PARTY_NOTICES.txt) and the [Engine Manifest](engines/manifest.json) for direct components, versions, sources, and license files. This list is not represented as a complete audit of transitive dependencies such as Qt, Boost, or Ceres.
 
 ### Brand
 

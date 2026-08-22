@@ -21,10 +21,12 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@playcanvas/react": "0.11.5",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.0",
     "lucide-react": "^0.539.0",
+    "playcanvas": "2.21.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.8"

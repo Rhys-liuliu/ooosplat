@@ -13,6 +13,7 @@ pub fn run_app() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(commands::PipelineController::default())
+        .manage(commands::PreviewController::default())
         .invoke_handler(tauri::generate_handler![
             commands::check_engines,
             commands::check_colmap_acceleration,
@@ -23,6 +24,10 @@ pub fn run_app() {
             commands::get_project_overview,
             commands::set_projects_root,
             commands::delete_project,
+            commands::prepare_gaussian_preview,
+            commands::release_gaussian_preview,
+            commands::save_gaussian_transform,
+            commands::export_transformed_gaussian,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run OOOSplat");

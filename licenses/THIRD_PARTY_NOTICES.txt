@@ -1,10 +1,10 @@
 OOOSplat — Third-party notices
 ================================
 
-This notice indexes the three native engines directly distributed with
-OOOSplat. Each component remains subject to its own license. This direct
-component list is not represented as a complete audit of transitive
-dependencies such as Qt, Boost, Ceres, or their dependencies.
+This notice indexes the native engines and preview libraries directly
+distributed with OOOSplat. Each component remains subject to its own license.
+This direct component list is not represented as a complete audit of
+transitive dependencies such as Qt, Boost, Ceres, or their dependencies.
 
 FFmpeg / FFprobe
 ----------------
@@ -50,6 +50,31 @@ License text: licenses/Brush-LICENSE.txt
 Upstream source: https://github.com/ArthurBrussee/brush/tree/v0.3.0
 Release archive: https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-x86_64-pc-windows-msvc.zip
 
-Exact archive and executable SHA-256 values are recorded in
-engines/manifest.json. This notice does not modify any component license.
+PlayCanvas Engine
+-----------------
+Version: 2.21.4
+License: MIT
+License text: licenses/PlayCanvas-MIT.txt
+Upstream source: https://github.com/playcanvas/engine/tree/v2.21.4
+
+PlayCanvas React
+----------------
+Version: 0.11.5
+License: MIT
+License text: licenses/PlayCanvas-MIT.txt
+Upstream source: https://github.com/playcanvas/react
+
+PlayCanvas splat-transform (adapted algorithm)
+----------------------------------------------
+Version referenced: 3.3.0
+Use: The Rust non-destructive PLY exporter adapts the quaternion, log-scale,
+     and real spherical-harmonics rotation behavior from bake-transform and
+     rotate-sh. The Node.js package and CLI are not bundled at runtime.
+License: MIT
+License text: licenses/PlayCanvas-MIT.txt
+Upstream source: https://github.com/playcanvas/splat-transform/tree/v3.3.0
+
+Exact native engine archive and executable SHA-256 values are recorded in
+engines/manifest.json. JavaScript versions are locked in package-lock.json.
+This notice does not modify any component license.
 Third-party product names and marks belong to their respective owners.
