@@ -93,17 +93,20 @@ pub async fn load_settings() -> Result<AppSettings> {
     })
 }
 
-pub async fn save_projects_root(root: PathBuf) -> Result<AppSettings> {
-    crate::project::ProjectManager::validate_root(&root).await?;
-    let settings = AppSettings {
-        schema_version: 1,
-        projects_root: root,
-    };
+async fn save_settings(settings: &AppSettings) -> Result<()> {
     let path = settings_path()?;
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
-    atomic_write_json(&path, &settings).await?;
+    atomic_write_json(&path, settings).await
+}
+
+/// 记住项目根目录。
+pub async fn save_projects_root(root: PathBuf) -> Result<AppSettings> {
+    crate::project::ProjectManager::validate_root(&root).await?;
+    let mut settings = load_settings().await?;
+    settings.projects_root = root;
+    save_settings(&settings).await?;
     Ok(settings)
 }
 
@@ -335,6 +338,19 @@ mod tests {
         assert!(serde_json::to_string(&value)
             .unwrap()
             .contains("projectsRoot"));
+        assert!(!serde_json::to_string(&value)
+            .unwrap()
+            .contains("colmapAcceleration"));
+    }
+
+    #[test]
+    fn legacy_acceleration_setting_is_ignored() {
+        let json = r#"{"schemaVersion":1,"projectsRoot":"C:/旧目录","colmapAcceleration":"gpu"}"#;
+        let parsed: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.projects_root, PathBuf::from("C:/旧目录"));
+        assert!(!serde_json::to_string(&parsed)
+            .unwrap()
+            .contains("colmapAcceleration"));
     }
 
     #[test]

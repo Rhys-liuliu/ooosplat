@@ -3,14 +3,29 @@ export type EngineKind = "ffmpeg" | "ffprobe" | "colmap" | "brush";
 export type RunPhase = "idle" | "analyzing" | "running" | "completed" | "failed" | "cancelled";
 export type ProjectStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
-export interface EngineStatus { kind: EngineKind; path: string; exists: boolean; canStart: boolean; version: string | null; cpuOnly: boolean | null; detail: string; }
+export type ColmapBackend = "cpu" | "gpu";
+export type AccelerationReasonCode =
+  | "gpuReady" | "colmapUnavailable" | "colmapCudaUnavailable" | "requirementsUnavailable"
+  | "nvidiaSmiNotFound" | "probeFailed" | "probeTimeout" | "noNvidiaGpu"
+  | "driverVersionUnknown" | "driverTooOld" | "computeCapabilityUnknown"
+  | "computeCapabilityTooLow";
+export interface GpuDeviceInfo { index: number; name: string; driverVersion: string; computeCapability: string; }
+export interface AccelerationRequirements { minimumDriverVersion: string; minimumComputeCapability: string; }
+export interface ColmapAccelerationStatus {
+  backend: ColmapBackend;
+  reasonCode: AccelerationReasonCode;
+  reason: string;
+  device: GpuDeviceInfo | null;
+  requirements: AccelerationRequirements;
+}
+export interface EngineStatus { kind: EngineKind; path: string; exists: boolean; canStart: boolean; version: string | null; cpuOnly: boolean | null; acceleration: ColmapAccelerationStatus | null; detail: string; }
 export interface VideoInfo { duration: number; width: number; height: number; fps: number; totalFrames: number; codec: string; rotation: number; }
 export interface FramePlan { retentionRatio: number; samplingFps: number; estimatedFrames: number; }
 
 export interface PipelineEvent {
   sequence: number;
   timestamp: string;
-  kind: "stage" | "progress" | "log" | "heartbeat";
+  kind: "stage" | "progress" | "log" | "heartbeat" | "capability";
   level: "info" | "warning" | "error";
   stage: string;
   engine: "system" | "ffmpeg" | "colmap" | "brush" | null;
@@ -22,6 +37,7 @@ export interface PipelineEvent {
   total: number | null;
   unit: string | null;
   elapsedMs: number;
+  acceleration: ColmapAccelerationStatus | null;
 }
 
 export interface PipelineResult {

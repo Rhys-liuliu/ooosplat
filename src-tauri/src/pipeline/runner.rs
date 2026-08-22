@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     engines::{
-        self, brush, colmap, ffmpeg::extract_uniform_frames, ffprobe::probe_video, EngineKind,
+        brush, colmap, ffmpeg::extract_uniform_frames, ffprobe::probe_video, EngineKind,
         EnginePaths,
     },
     error::{Result, SplatError},
@@ -103,6 +103,7 @@ impl EventSink {
             total,
             unit: unit.map(str::to_owned),
             elapsed_ms: self.started.elapsed().as_millis() as u64,
+            acceleration: None,
         });
     }
 
@@ -119,6 +120,34 @@ impl EventSink {
             None,
             None,
         );
+    }
+
+    fn acceleration(&self, status: crate::engines::ColmapAccelerationStatus) {
+        let _dispatch = self
+            .dispatch
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        (self.emit)(PipelineEvent {
+            sequence: self.sequence.fetch_add(1, Ordering::Relaxed) + 1,
+            timestamp: Utc::now(),
+            kind: EventKind::Capability,
+            level: if status.use_gpu() {
+                EventLevel::Info
+            } else {
+                EventLevel::Warning
+            },
+            stage: PipelineStage::Created,
+            engine: Some(PipelineEngine::Colmap),
+            progress: 0.0,
+            stage_progress: None,
+            indeterminate: false,
+            message: status.reason.clone(),
+            current: None,
+            total: None,
+            unit: None,
+            elapsed_ms: self.started.elapsed().as_millis() as u64,
+            acceleration: Some(status),
+        });
     }
 }
 
@@ -146,7 +175,9 @@ impl PipelineRunner {
         self.process_manager.cancel();
     }
 
-    pub async fn verify_pipeline_engines(&self) -> Result<()> {
+    pub async fn verify_pipeline_engines(
+        &self,
+    ) -> Result<crate::engines::ColmapAccelerationStatus> {
         let statuses = self.engines.check_all().await;
         for required in [
             EngineKind::Ffmpeg,
@@ -168,9 +199,13 @@ impl PipelineRunner {
                 });
             }
         }
-        engines::health::require_cpu_colmap(&self.engines).await?;
         colmap::require_verified_cli(&self.engines.colmap)?;
-        brush::require_verified_cli(&self.engines.brush)
+        brush::require_verified_cli(&self.engines.brush)?;
+        statuses
+            .into_iter()
+            .find(|status| status.kind == EngineKind::Colmap)
+            .and_then(|status| status.acceleration)
+            .ok_or_else(|| SplatError::UnsupportedEngine("无法确定 COLMAP 自动加速状态".into()))
     }
 
     pub async fn prepare_frames(
@@ -270,11 +305,18 @@ impl PipelineRunner {
         quality: Quality,
         project_manager: ProjectManager,
     ) -> Result<PipelineResult> {
-        self.verify_pipeline_engines().await?;
+        let acceleration = self.verify_pipeline_engines().await?;
+        self.events.acceleration(acceleration.clone());
         let (paths, mut metadata) = project_manager.create(input, quality).await?;
         let started = Instant::now();
         let result = self
-            .run_project(&project_manager, &paths, &mut metadata, quality)
+            .run_project(
+                &project_manager,
+                &paths,
+                &mut metadata,
+                quality,
+                &acceleration,
+            )
             .await;
 
         if let Err(error) = &result {
@@ -307,6 +349,7 @@ impl PipelineRunner {
         paths: &ProjectPaths,
         metadata: &mut ProjectMetadata,
         quality: Quality,
+        acceleration: &crate::engines::ColmapAccelerationStatus,
     ) -> Result<PipelineResult> {
         let mut state = PipelineStateFile::created(quality);
         let prepared = self
@@ -333,10 +376,12 @@ impl PipelineRunner {
         // moving any project data outside the project directory.
         let colmap_images = Path::new("../frames");
 
+        let backend_label = if acceleration.use_gpu() { "GPU" } else { "CPU" };
+        let gpu_index = acceleration.gpu_index();
         self.events.stage(
             PipelineStage::ExtractingFeatures,
             0.0,
-            "COLMAP 正在使用 CPU 提取特征",
+            format!("COLMAP 正在使用 {backend_label} 提取特征"),
         );
         colmap::extract_features(
             &self.engines.colmap,
@@ -350,16 +395,23 @@ impl PipelineRunner {
                 Some(prepared.extracted_frames),
                 ObserverMode::BracketProgress,
             )),
+            gpu_index,
         )
         .await?;
         state.stage = PipelineStage::ExtractingFeatures;
         state.features_complete = true;
         project_manager.write_state(&paths.state, &state).await?;
-        self.events
-            .stage(PipelineStage::ExtractingFeatures, 1.0, "CPU 特征提取完成");
+        self.events.stage(
+            PipelineStage::ExtractingFeatures,
+            1.0,
+            format!("{backend_label} 特征提取完成"),
+        );
 
-        self.events
-            .stage(PipelineStage::Matching, 0.0, "COLMAP 正在进行 CPU 顺序匹配");
+        self.events.stage(
+            PipelineStage::Matching,
+            0.0,
+            format!("COLMAP 正在进行 {backend_label} 顺序匹配"),
+        );
         colmap::match_sequential(
             &self.engines.colmap,
             &database,
@@ -371,6 +423,7 @@ impl PipelineRunner {
                 Some(prepared.extracted_frames),
                 ObserverMode::BracketProgress,
             )),
+            gpu_index,
         )
         .await?;
         state.stage = PipelineStage::Matching;

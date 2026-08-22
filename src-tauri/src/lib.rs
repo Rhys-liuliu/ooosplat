@@ -15,6 +15,7 @@ pub fn run_app() {
         .manage(commands::PipelineController::default())
         .invoke_handler(tauri::generate_handler![
             commands::check_engines,
+            commands::check_colmap_acceleration,
             commands::probe_and_plan,
             commands::start_pipeline,
             commands::cancel_pipeline,

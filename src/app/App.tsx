@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  Aperture, ChevronRight, CircleAlert, Clapperboard, FileBox,
+  Aperture, ChevronRight, CircleAlert, Clapperboard, Cpu, FileBox,
   FolderOpen, LoaderCircle, MapPin, Minus, Play, Plus, RotateCcw, Square, Trash2,
+  Zap,
 } from "lucide-react";
 import {
   cancelPipeline, checkEngines, confirmAndDeleteProject, getProjectOverview,
   onPipelineEvent, probeAndPlan, revealProject, selectProjectsRoot, selectVideo,
   setProjectsRoot, startPipeline,
 } from "../lib/backend";
+import { startElapsedTicker } from "../lib/elapsedTimer";
 import { useAppStore } from "../stores/appStore";
 import type { EngineStatus, ProjectStatus, ProjectSummary, Quality } from "../types/pipeline";
 
@@ -63,7 +65,7 @@ const readSavedNumber = (key: string, fallback: number) => {
 };
 
 function engineReady(engine: EngineStatus) {
-  return engine.canStart && (engine.kind !== "colmap" || engine.cpuOnly === true);
+  return engine.canStart;
 }
 
 function ProjectRow({ project, busy, onDelete }: { project: ProjectSummary; busy: boolean; onDelete: (project: ProjectSummary) => void }) {
@@ -96,6 +98,8 @@ export function App() {
   const isRunning = store.phase === "running";
   const logEnd = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
+  const runStartedAt = useRef<number | null>(null);
+  const [liveElapsedMs, setLiveElapsedMs] = useState(0);
   const [leftPanePercent, setLeftPanePercent] = useState(() => Math.min(68, Math.max(32, readSavedNumber("ooo-splat-left-pane", 44))));
   const [uiScale, setUiScale] = useState(() => Math.min(140, Math.max(80, readSavedNumber("ooo-splat-ui-scale", 100))));
   const [isResizing, setIsResizing] = useState(false);
@@ -113,17 +117,32 @@ export function App() {
 
   useEffect(() => {
     void Promise.all([checkEngines(), getProjectOverview()])
-      .then(([engines, overview]) => { store.setEngines(engines); store.setProjectsRoot(overview.projectsRoot); store.setProjects(overview.projects); })
+      .then(([engines, overview]) => {
+        store.setEngines(engines);
+        store.setProjectsRoot(overview.projectsRoot);
+        store.setProjects(overview.projects);
+        store.setColmapAcceleration(engines.find((engine) => engine.kind === "colmap")?.acceleration ?? null);
+      })
       .catch((error) => store.setError(messageOf(error)));
-  }, [store.setEngines, store.setProjects, store.setProjectsRoot, store.setError]);
+  }, [store.setEngines, store.setProjects, store.setProjectsRoot, store.setColmapAcceleration, store.setError]);
 
   useEffect(() => {
     let unlisten: undefined | (() => void);
-    void onPipelineEvent(store.receiveEvent).then((fn) => { unlisten = fn; });
+    void onPipelineEvent((event) => {
+      store.receiveEvent(event);
+      if (["completed", "failed", "cancelled"].includes(event.stage)) {
+        setLiveElapsedMs(event.elapsedMs);
+      }
+    }).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
   }, [store.receiveEvent]);
 
   useEffect(() => { logEnd.current?.scrollIntoView({ block: "nearest" }); }, [store.events.length]);
+
+  useEffect(() => {
+    if (!isRunning || runStartedAt.current == null) return;
+    return startElapsedTicker(runStartedAt.current, setLiveElapsedMs);
+  }, [isRunning]);
 
   useEffect(() => {
     try { window.localStorage.setItem("ooo-splat-left-pane", leftPanePercent.toFixed(1)); } catch { /* optional preference */ }
@@ -182,12 +201,19 @@ export function App() {
 
   const generate = async () => {
     if (!store.videoPath || !store.plan || !store.projectsRoot) return;
+    runStartedAt.current = Date.now();
+    setLiveElapsedMs(0);
     store.beginRun();
     try {
       const result = await startPipeline(store.videoPath, store.quality, store.projectsRoot);
+      setLiveElapsedMs((current) => Math.max(current, result.durationMs));
       store.setResult(result);
       store.setPhase("completed");
     } catch (error) {
+      if (runStartedAt.current != null) {
+        const backendElapsed = useAppStore.getState().latestEvent?.elapsedMs ?? 0;
+        setLiveElapsedMs(Math.max(backendElapsed, Date.now() - runStartedAt.current));
+      }
       const message = messageOf(error);
       store.setError(message);
       store.setPhase(message.includes("取消") ? "cancelled" : "failed");
@@ -206,7 +232,7 @@ export function App() {
     <div className="interface-frame" style={{ "--ui-scale": uiScale / 100, "--ui-size": `${10000 / uiScale}%` } as CSSProperties}>
     <header className="topbar">
       <div className="brand-lockup"><span className="brand-mark"><Aperture size={17} /></span><span className="brand-name">OOO<span>Splat</span></span><span className="version-tag">LOCAL / 0.1.0</span></div>
-      <div className="engine-summary"><span className={missingEngines.length ? "status-light warning" : "status-light"} />{store.engines.length === 0 ? "正在检查内置引擎" : missingEngines.length ? `${missingEngines.length} 个引擎异常` : "FFmpeg · COLMAP CPU · Brush 就绪"}</div>
+      <div className="engine-summary"><span className={missingEngines.length ? "status-light warning" : "status-light"} />{store.engines.length === 0 ? "正在检查内置引擎" : missingEngines.length ? `${missingEngines.length} 个引擎异常` : "FFmpeg · COLMAP · Brush 就绪"}</div>
     </header>
 
     <section className="workspace" ref={workspaceRef} style={{ "--left-pane-width": `${leftPanePercent}%` } as CSSProperties}>
@@ -237,6 +263,14 @@ export function App() {
           </div>
         </div>
 
+        <div className={`acceleration-status ${store.colmapAcceleration?.backend === "gpu" ? "gpu" : store.colmapAcceleration && !["nvidiaSmiNotFound", "noNvidiaGpu"].includes(store.colmapAcceleration.reasonCode) ? "warning" : "cpu"}`} aria-live="polite">
+          <span className="acceleration-icon">{store.colmapAcceleration?.backend === "gpu" ? <Zap size={17} fill="currentColor" /> : store.colmapAcceleration && !["nvidiaSmiNotFound", "noNvidiaGpu"].includes(store.colmapAcceleration.reasonCode) ? <CircleAlert size={17} /> : store.colmapAcceleration ? <Cpu size={17} /> : <LoaderCircle className="spin" size={17} />}</span>
+          <span>
+            <strong>{store.colmapAcceleration == null ? "正在检测 COLMAP GPU 加速…" : store.colmapAcceleration.backend === "gpu" ? "COLMAP GPU 加速已开启" : "COLMAP 使用 CPU"}</strong>
+            <small>{store.colmapAcceleration == null ? "正在读取 NVIDIA 驱动与显卡能力" : store.colmapAcceleration.backend === "gpu" && store.colmapAcceleration.device ? `${store.colmapAcceleration.device.name} · 驱动 ${store.colmapAcceleration.device.driverVersion} · Compute Capability ${store.colmapAcceleration.device.computeCapability}` : `${store.colmapAcceleration.reason} · 最低要求：驱动 ${store.colmapAcceleration.requirements.minimumDriverVersion}，Compute Capability ${store.colmapAcceleration.requirements.minimumComputeCapability}`}</small>
+          </span>
+        </div>
+
         {store.video && store.plan && <div className="source-metrics">
           <span><small>时长</small><b>{formatVideoDuration(store.video.duration)}</b></span>
           <span><small>分辨率</small><b>{store.video.width} × {store.video.height}</b></span>
@@ -254,7 +288,7 @@ export function App() {
           <div className="process-metrics">
             <span><small>当前阶段</small><b>{currentStageLabel(store.latestEvent?.stage, activeStageIndex)}</b></span>
             <span><small>进度</small><b>{store.latestEvent?.current != null ? `${store.latestEvent.current.toLocaleString()}${store.latestEvent.total ? ` / ${store.latestEvent.total.toLocaleString()}` : ""}` : "持续运行"}</b></span>
-            <span><small>总耗时</small><b>{formatDuration(store.latestEvent?.elapsedMs ?? 0)}</b></span>
+            <span><small>总耗时</small><b>{formatDuration(liveElapsedMs)}</b></span>
           </div>
           <ol className="stage-timeline">
             {stages.map(([key, label], index) => <li key={key} className={index < activeStageIndex || store.phase === "completed" ? "done" : index === activeStageIndex && isRunning ? "active" : ""}><span /><b>{label}</b>{index === activeStageIndex && isRunning && <small>{store.latestEvent?.indeterminate ? "运行中" : `${(store.latestEvent?.stageProgress ?? 0).toFixed(0)}%`}</small>}</li>)}
