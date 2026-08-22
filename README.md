@@ -8,7 +8,7 @@
 
 OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面应用。发布流程会将 FFmpeg、FFprobe、COLMAP（CUDA 构建）和 Brush 打包进安装程序，用户无需配置系统 `PATH` 或单独安装原生引擎。源码仓库不保存这些大型二进制文件，而是通过固定来源和 SHA-256 在构建前恢复。
 
-当前版本：**0.1.0**
+当前版本：**0.2.0**
 
 > 当前交付目标是从视频生成并管理 `final.ply`。应用暂不包含 3D Viewer，生成结果需要使用其他支持 Gaussian Splatting PLY 的工具查看。
 
@@ -55,7 +55,7 @@ COLMAP 使用同时支持 CPU 与 CUDA GPU 的构建，运行前会自动选择�
 
 ## 安装与使用
 
-1. 运行 `OOOSplat_0.1.0_x64-setup.exe` 完成安装。
+1. 运行 `OOOSplat_0.2.0_x64-setup.exe` 完成安装。
 2. 启动 OOOSplat，确认顶栏中的内置引擎状态正常。
 3. 在“01 创建新任务”中选择输入视频。
 4. 选择项目根目录；程序会记住上次使用的位置。
@@ -171,7 +171,7 @@ npm run tauri -- build
 NSIS 安装包输出到：
 
 ```text
-src-tauri\target\release\bundle\nsis\OOOSplat_0.1.0_x64-setup.exe
+src-tauri\target\release\bundle\nsis\OOOSplat_0.2.0_x64-setup.exe
 ```
 
 首次构建前必须运行 `npm run setup:engines`。`beforeBuildCommand` 会自动执行引擎校验和前端生产构建，但不会在打包过程中隐式访问网络。

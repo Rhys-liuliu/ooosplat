@@ -8,7 +8,7 @@
 
 OOOSplat is a local Windows desktop application that converts video into 3D Gaussian Splatting projects. Its release package bundles FFmpeg, FFprobe, a CUDA-enabled COLMAP build, and Brush, so users do not need to configure the system `PATH` or install native engines separately. Large engine binaries are not stored in the source repository; the build setup restores them from pinned sources and verifies their SHA-256 hashes.
 
-Current version: **0.1.0**
+Current version: **0.2.0**
 
 See the [OOOSplat Roadmap](ROADMAP.md) for planned work.
 
@@ -57,7 +57,7 @@ The bundled COLMAP build supports both CPU and CUDA GPU execution. OOOSplat auto
 
 ## Installation and Use
 
-1. Run `OOOSplat_0.1.0_x64-setup.exe`.
+1. Run `OOOSplat_0.2.0_x64-setup.exe`.
 2. Start OOOSplat and confirm that the bundled engine status in the top bar is healthy.
 3. Select an input video under “01 Create New Task.”
 4. Choose the projects root; OOOSplat remembers the last location.
@@ -173,7 +173,7 @@ npm run tauri -- build
 The NSIS installer is written to:
 
 ```text
-src-tauri\target\release\bundle\nsis\OOOSplat_0.1.0_x64-setup.exe
+src-tauri\target\release\bundle\nsis\OOOSplat_0.2.0_x64-setup.exe
 ```
 
 Run `npm run setup:engines` before the first build. Tauri's `beforeBuildCommand` automatically runs the engine checks and frontend production build, but it does not access the network implicitly during packaging.
