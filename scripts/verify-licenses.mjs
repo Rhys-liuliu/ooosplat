@@ -40,6 +40,7 @@ const requiredFiles = [
   "licenses/Brush-LICENSE.txt",
   "engines/manifest.json",
   "engines/manifest.linux.json",
+  "engines/manifest.macos.json",
 ];
 
 for (const relativePath of requiredFiles) {
@@ -84,6 +85,26 @@ for (const resource of [
   "../licenses/Brush-LICENSE.txt",
 ]) {
   assert(Object.hasOwn(tauri.bundle?.resources ?? {}, resource), `Tauri resources are missing ${resource}.`);
+}
+
+const tauriWindows = JSON.parse(readText("src-tauri/tauri.windows.conf.json"));
+assert(
+  Object.hasOwn(tauriWindows.bundle?.resources ?? {}, "../engines/manifest.json"),
+  "Windows Tauri resources are missing the Windows engine manifest.",
+);
+const tauriLinux = JSON.parse(readText("src-tauri/tauri.linux.conf.json"));
+assert(tauriLinux.bundle?.active === true, "Linux Tauri bundling must be enabled.");
+assert(tauriLinux.bundle?.targets?.includes("deb"), "Linux Tauri targets must include deb.");
+for (const resource of ["../engines/manifest.linux.json", "../engines/linux/brush/"]) {
+  assert(Object.hasOwn(tauriLinux.bundle?.resources ?? {}, resource), `Linux Tauri resources are missing ${resource}.`);
+}
+for (const dependency of ["ffmpeg", "colmap"]) {
+  assert(tauriLinux.bundle?.linux?.deb?.depends?.includes(dependency), `Linux DEB dependencies are missing ${dependency}.`);
+}
+const tauriMacos = JSON.parse(readText("src-tauri/tauri.macos.conf.json"));
+assert(tauriMacos.bundle?.macOS?.minimumSystemVersion === "15.0", "macOS bundle must target macOS 15.0.");
+for (const resource of ["../engines/manifest.macos.json", "../engines/macos/arm64/"]) {
+  assert(Object.hasOwn(tauriMacos.bundle?.resources ?? {}, resource), `macOS Tauri resources are missing ${resource}.`);
 }
 
 const expectedEngines = new Map([
@@ -132,6 +153,32 @@ for (const marker of [
   assertContains(thirdParty, marker, "THIRD_PARTY_NOTICES.txt");
 }
 
+const macosManifest = JSON.parse(readText("engines/manifest.macos.json"));
+assert(macosManifest.schemaVersion >= 1, "macOS engine manifest schemaVersion is missing.");
+assert(macosManifest.platform === "macos", "macOS engine manifest platform is incorrect.");
+assert(macosManifest.architecture === "arm64", "macOS engine manifest must be Apple arm64 only.");
+assert(macosManifest.minimumSystemVersion === "15.0", "macOS engine manifest must target macOS 15.0.");
+assert(/^[A-F0-9]{40}$/.test(macosManifest.buildEnvironment?.homebrewCoreCommit), "macOS Homebrew/core build commit is not pinned.");
+assert(macosManifest.buildEnvironment?.runner === "macos-15", "macOS engine runner must be pinned to macos-15.");
+assert(macosManifest.buildEnvironment?.usePinnedHomebrewBottles === true, "macOS build dependencies must use pinned Homebrew bottles.");
+assert(macosManifest.engines?.length === 3, "macOS manifest must contain the three direct engines.");
+for (const engine of macosManifest.engines) {
+  const expected = expectedEngines.get(engine.name);
+  assert(expected, `Unexpected macOS engine: ${engine.name}`);
+  assert(engine.license === expected.license, `${engine.name} macOS license identifier is incorrect.`);
+  assert(engine.licenseFiles?.length === 1 && engine.licenseFiles[0] === expected.file, `${engine.name} macOS license mapping is incorrect.`);
+  assert(/^[A-F0-9]{64}$/.test(engine.sourceSha256), `${engine.name} macOS source SHA-256 is invalid.`);
+}
+for (const marker of [
+  "macOS 15+ Apple Silicon arm64",
+  "ffmpeg-8.1.2.tar.xz",
+  "COLMAP 4.0.4 macOS arm64 CPU CLI-only",
+  "brush-app-aarch64-apple-darwin.tar.xz",
+  "engines/manifest.macos.json",
+]) {
+  assertContains(thirdParty, marker, "THIRD_PARTY_NOTICES.txt");
+}
+
 const ffmpegLicense = readText("licenses/FFmpeg-LGPL-2.1.txt");
 assertContains(ffmpegLicense, "GNU LESSER GENERAL PUBLIC LICENSE", "FFmpeg license");
 assertContains(ffmpegLicense, "Version 2.1, February 1999", "FFmpeg license");
@@ -167,4 +214,4 @@ for (const term of [
   assertContains(outputs, term, "Generated outputs policy");
 }
 
-console.log("Verified OOOSplat license metadata and Windows/Linux notices for 3 direct engines.");
+console.log("Verified OOOSplat license metadata and Windows/Linux/macOS notices for 3 direct engines.");
