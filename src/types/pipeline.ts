@@ -75,3 +75,44 @@ export interface ProjectSummary {
 }
 
 export interface ProjectOverview { projectsRoot: string; projects: ProjectSummary[]; }
+
+export type GaussianFormat = "ply" | "sog" | "spz";
+export interface GaussianTransform {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: number;
+}
+export interface GaussianPreviewDescriptor {
+  projectId: string;
+  modelPath: string;
+  assetPath: string;
+  format: GaussianFormat;
+  fileSize: number;
+  splatCount: number;
+  transform: GaussianTransform;
+}
+export interface GaussianExportProgress {
+  projectId: string;
+  processedSplats: number;
+  totalSplats: number;
+  progress: number;
+}
+export interface GaussianExportResult {
+  path: string;
+  fileSize: number;
+  splatCount: number;
+}
+
+export interface GaussianVideoExportSession {
+  exportId: string;
+  destinationPath: string;
+}
+
+export interface GaussianVideoExportResult {
+  path: string;
+  fileSize: number;
+  width: number;
+  height: number;
+  fps: number;
+  durationMs: number;
+}

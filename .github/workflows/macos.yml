@@ -92,9 +92,9 @@ jobs:
           app="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
           dmg="$(find src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)"
           mkdir -p dist-artifacts
-          ditto -c -k --sequesterRsrc --keepParent "$app" dist-artifacts/OOOSplat_0.2.0_arm64.app.zip
-          cp "$dmg" dist-artifacts/OOOSplat_0.2.0_arm64.dmg
-          (cd dist-artifacts && shasum -a 256 OOOSplat_0.2.0_arm64.app.zip OOOSplat_0.2.0_arm64.dmg > SHA256SUMS.txt)
+          ditto -c -k --sequesterRsrc --keepParent "$app" dist-artifacts/OOOSplat_0.3.0_arm64.app.zip
+          cp "$dmg" dist-artifacts/OOOSplat_0.3.0_arm64.dmg
+          (cd dist-artifacts && shasum -a 256 OOOSplat_0.3.0_arm64.app.zip OOOSplat_0.3.0_arm64.dmg > SHA256SUMS.txt)
 
       - name: Upload unsigned macOS Alpha
         uses: actions/upload-artifact@v7

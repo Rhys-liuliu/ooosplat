@@ -1,13 +1,16 @@
 OOOSplat — Third-party notices
 ================================
 
-This notice indexes the three native engines directly distributed with or
-downloaded by OOOSplat. Each component remains subject to its own license.
+This notice indexes the native engines and preview libraries directly
+distributed with or downloaded by OOOSplat. Each component remains subject
+to its own license.
 For the macOS runtime, BUNDLED-COMPONENTS.json is generated from the dylibs
 actually copied into the release and records their Homebrew formula, declared
 license, homepage, and packaged files. Release verification rejects an
 unmapped dylib. Windows and Linux transitive dependency auditing remains
 separate from this direct component notice.
+This direct component list is not represented as a complete audit of
+transitive dependencies such as Qt, Boost, Ceres, or their dependencies.
 
 FFmpeg / FFprobe
 ----------------
@@ -70,8 +73,43 @@ Windows x64 release archive: https://github.com/ArthurBrussee/brush/releases/dow
 Ubuntu 24.04 Alpha, Linux x86_64 release archive: https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-x86_64-unknown-linux-gnu.tar.xz
 macOS 15+ Apple Silicon arm64 release archive: https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-aarch64-apple-darwin.tar.xz
 
-Exact archive and executable SHA-256 values are recorded in
+PlayCanvas Engine
+-----------------
+Version: 2.21.4
+License: MIT
+License text: licenses/PlayCanvas-MIT.txt
+Upstream source: https://github.com/playcanvas/engine/tree/v2.21.4
+
+PlayCanvas React
+----------------
+Version: 0.11.5
+License: MIT
+License text: licenses/PlayCanvas-MIT.txt
+Upstream source: https://github.com/playcanvas/react
+
+PlayCanvas splat-transform (adapted algorithm)
+----------------------------------------------
+Version referenced: 3.3.0
+Use: The Rust non-destructive PLY exporter adapts the quaternion, log-scale,
+     and real spherical-harmonics rotation behavior from bake-transform and
+     rotate-sh. The Node.js package and CLI are not bundled at runtime.
+License: MIT
+License text: licenses/PlayCanvas-MIT.txt
+Upstream source: https://github.com/playcanvas/splat-transform/tree/v3.3.0
+
+Mediabunny
+----------
+Version: 1.52.3
+Use: WebCodecs AVC encoding and MP4 muxing for portrait Gaussian preview videos.
+License: Mozilla Public License 2.0
+SPDX identifier: MPL-2.0
+License text: licenses/Mediabunny-MPL-2.0.txt
+Upstream source: https://github.com/Vanilagy/mediabunny/tree/v1.52.3
+Distributed source package: https://www.npmjs.com/package/mediabunny/v/1.52.3
+
+Exact native engine archive and executable SHA-256 values are recorded in
 engines/manifest.json for Windows, engines/manifest.linux.json for the Ubuntu
-24.04 Alpha, and engines/manifest.macos.json for Apple Silicon macOS. This
-notice does not modify any component license.
+24.04 Alpha, and engines/manifest.macos.json for Apple Silicon macOS.
+JavaScript versions are locked in package-lock.json. This notice does not
+modify any component license.
 Third-party product names and marks belong to their respective owners.

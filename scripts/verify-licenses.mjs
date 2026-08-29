@@ -38,6 +38,8 @@ const requiredFiles = [
   "licenses/COLMAP-LICENSE.txt",
   "licenses/NVIDIA-CUDA-Runtime.txt",
   "licenses/Brush-LICENSE.txt",
+  "licenses/PlayCanvas-MIT.txt",
+  "licenses/Mediabunny-MPL-2.0.txt",
   "engines/manifest.json",
   "engines/manifest.linux.json",
   "engines/manifest.macos.json",
@@ -83,6 +85,8 @@ for (const resource of [
   "../licenses/COLMAP-LICENSE.txt",
   "../licenses/NVIDIA-CUDA-Runtime.txt",
   "../licenses/Brush-LICENSE.txt",
+  "../licenses/PlayCanvas-MIT.txt",
+  "../licenses/Mediabunny-MPL-2.0.txt",
 ]) {
   assert(Object.hasOwn(tauri.bundle?.resources ?? {}, resource), `Tauri resources are missing ${resource}.`);
 }
@@ -188,6 +192,27 @@ for (const marker of [
   assertContains(thirdParty, marker, "THIRD_PARTY_NOTICES.txt");
 }
 
+for (const component of ["PlayCanvas Engine", "PlayCanvas React", "PlayCanvas splat-transform (adapted algorithm)"]) {
+  assertContains(thirdParty, component, "THIRD_PARTY_NOTICES.txt");
+}
+assertContains(thirdParty, "licenses/PlayCanvas-MIT.txt", "THIRD_PARTY_NOTICES.txt");
+const playCanvasLicense = readText("licenses/PlayCanvas-MIT.txt");
+assertContains(playCanvasLicense, "MIT License", "PlayCanvas license");
+assertContains(playCanvasLicense, "Copyright (c) 2011-2026 PlayCanvas Ltd.", "PlayCanvas license");
+
+for (const marker of [
+  "Mediabunny",
+  "1.52.3",
+  "MPL-2.0",
+  "licenses/Mediabunny-MPL-2.0.txt",
+  "https://github.com/Vanilagy/mediabunny/tree/v1.52.3",
+]) {
+  assertContains(thirdParty, marker, "THIRD_PARTY_NOTICES.txt");
+}
+const mediabunnyLicense = readText("licenses/Mediabunny-MPL-2.0.txt");
+assertContains(mediabunnyLicense, "Mozilla Public License Version 2.0", "Mediabunny license");
+assertContains(mediabunnyLicense, "2. License Grants and Conditions", "Mediabunny license");
+
 const ffmpegLicense = readText("licenses/FFmpeg-LGPL-2.1.txt");
 assertContains(ffmpegLicense, "GNU LESSER GENERAL PUBLIC LICENSE", "FFmpeg license");
 assertContains(ffmpegLicense, "Version 2.1, February 1999", "FFmpeg license");
@@ -223,4 +248,6 @@ for (const term of [
   assertContains(outputs, term, "Generated outputs policy");
 }
 
-console.log("Verified OOOSplat license metadata and Windows/Linux/macOS notices for 3 direct engines.");
+console.log(
+  "Verified OOOSplat license metadata, Windows/Linux/macOS engine notices, PlayCanvas preview notices, and Mediabunny video export notices.",
+);

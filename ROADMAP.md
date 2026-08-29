@@ -2,6 +2,12 @@
 
 本路线图用于说明 OOOSplat 的产品方向和实施优先级。P0–P3 表示相对优先顺序，不代表版本号，也不承诺具体发布日期。
 
+## 产品原则
+
+- **一键工作流**：持续减少引擎配置和手动操作，让用户从输入素材直接获得可用的 Gaussian Splatting 结果。
+- **本地优先**：重建、训练、预览和导出优先使用用户本机算力，不依赖云端处理服务。
+- **安全与非破坏**：素材和工程数据默认保留在本地；编辑和导出尽量保留原始结果，并让文件位置和处理状态清晰可追踪。
+
 ## 优先级说明
 
 - **P0 · 近期重点**：优先推进核心体验与重点平台工作。
@@ -13,11 +19,8 @@
 
 | 优先级 | 事项 | 目标 | GitHub Issue |
 | --- | --- | --- | --- |
-| P0 | 增加高斯泼溅预览 | 在 OOOSplat 中直接查看生成的 Gaussian Splatting 结果，减少依赖外部查看工具。 | [#3 关于集成查看功能](https://github.com/ooolabdev/ooosplat/issues/3) |
 | P0 | 失败或暂停后支持断点续跑 | 保留可复用的阶段结果，使中断任务能够从合适的处理阶段继续。 | 待创建 |
-| P0 | macOS 版本 | 为 Apple Silicon Mac 提供完整的 OOOSplat 桌面应用与内置引擎工作流。 | [#4 Add macOS support](https://github.com/ooolabdev/ooosplat/issues/4) |
 | P1 | 支持输入图片序列 | 允许用户以有序图片集作为重建输入，而不必先制作视频文件。 | 待创建 |
-| P1 | CUDA 加速版本 | 为受支持的 NVIDIA GPU 提供可选的 CUDA 重建流水线，同时保留 CPU 路径。 | [#6 Add CUDA-accelerated pipeline for NVIDIA GPUs](https://github.com/ooolabdev/ooosplat/issues/6)；相关用户反馈 [#2](https://github.com/ooolabdev/ooosplat/issues/2) 已关闭 |
 | P3 | 全景视频支持 | 探索将全景视频作为输入并生成可用 Gaussian Splatting 结果的工作流。 | 待创建 |
 
 ## 已完成
@@ -25,6 +28,9 @@
 | 状态 | 事项 | 交付 | GitHub Issue |
 | --- | --- | --- | --- |
 | 已完成 | Ubuntu 24.04 Alpha | 为 x86_64 提供 `.deb` 桌面安装包和 CLI，使用系统 FFmpeg/FFprobe/CPU COLMAP 与安装包内固定版本 Brush；不代表支持其他 Linux 发行版。 | [#5 Add Linux support](https://github.com/ooolabdev/ooosplat/issues/5)，由 [PR #10](https://github.com/ooolabdev/ooosplat/pull/10) 交付 |
+| 已完成 | Apple Silicon macOS Alpha | 为 macOS 15+ arm64 提供随应用交付的 FFmpeg、FFprobe、CPU COLMAP 和 Brush 工作流。 | [#4 Add macOS support](https://github.com/ooolabdev/ooosplat/issues/4)，由 [PR #8](https://github.com/ooolabdev/ooosplat/pull/8) 交付 |
+| 已完成 | 内嵌高斯泼溅预览 | 已支持加载 `.ply`、相机浏览、整体 Transform、撤销 / 重做、动画预览，以及非破坏式 Gaussian 和竖屏视频导出。 | [#3 关于集成查看功能](https://github.com/ooolabdev/ooosplat/issues/3) |
+| 已完成 | COLMAP CUDA 自动加速 | 已支持检测 NVIDIA 驱动和 Compute Capability，满足要求时自动启用 GPU 特征提取与匹配，否则无中断地回退 CPU。 | [#6 Add CUDA-accelerated pipeline for NVIDIA GPUs](https://github.com/ooolabdev/ooosplat/issues/6)；相关用户反馈 [#2](https://github.com/ooolabdev/ooosplat/issues/2) |
 
 ## 跟踪与贡献
 

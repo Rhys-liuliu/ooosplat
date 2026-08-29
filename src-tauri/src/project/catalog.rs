@@ -169,6 +169,45 @@ pub async fn validate_registered_final_ply(source: &Path) -> Result<PathBuf> {
     Err(SplatError::InvalidPath(source))
 }
 
+pub async fn load_registered_project(id: Uuid) -> Result<(PathBuf, ProjectMetadata)> {
+    let index = load_index().await?;
+    let item = index
+        .projects
+        .into_iter()
+        .find(|item| item.id == id)
+        .ok_or_else(|| SplatError::Process("项目索引中不存在该项目".into()))?;
+    let bytes = tokio::fs::read(item.path.join("project.json")).await?;
+    let metadata: ProjectMetadata = serde_json::from_slice(&bytes)?;
+    if !has_project_ownership(&metadata, &item.path, id) {
+        return Err(SplatError::Process(
+            "项目身份校验失败，拒绝访问预览文件".into(),
+        ));
+    }
+    Ok((item.path, metadata))
+}
+
+pub async fn registered_final_ply_for_project(
+    id: Uuid,
+) -> Result<(PathBuf, PathBuf, ProjectMetadata)> {
+    let (root, metadata) = load_registered_project(id).await?;
+    if metadata.status != ProjectStatus::Completed {
+        return Err(SplatError::Process("只有已完成的项目可以预览".into()));
+    }
+    if metadata.model != "final.ply" {
+        return Err(SplatError::Process("项目模型路径无效".into()));
+    }
+    let direct = root.join("final.ply");
+    let legacy = root.join("output").join("final.ply");
+    let path = if direct.is_file() {
+        direct
+    } else if legacy.is_file() {
+        legacy
+    } else {
+        return Err(SplatError::Process("项目缺少 final.ply".into()));
+    };
+    Ok((root, std::fs::canonicalize(path)?, metadata))
+}
+
 async fn scan_root(root: &Path, destinations: &mut Vec<PathBuf>) -> Result<()> {
     if !root.is_dir() {
         return Ok(());
@@ -372,6 +411,8 @@ mod tests {
             output_path: None,
             output: None,
             failure_message: None,
+            model: "final.ply".into(),
+            transform: Default::default(),
         };
         assert!(!has_project_ownership(
             &metadata,

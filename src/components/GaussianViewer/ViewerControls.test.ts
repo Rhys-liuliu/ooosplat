@@ -1,0 +1,120 @@
+// @vitest-environment jsdom
+
+import { BoundingBox, Vec3, type Entity } from "playcanvas";
+import { describe, expect, it, vi } from "vitest";
+import { ViewerControls } from "./ViewerControls";
+
+function pointerEvent(type: string, x: number, y: number, button = 0) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, button, buttons: type === "pointerup" ? 0 : 1, clientX: x, clientY: y });
+  Object.defineProperty(event, "pointerId", { value: 7 });
+  return event;
+}
+
+function setup() {
+  const canvas = document.createElement("canvas");
+  const captures = new Set<number>();
+  Object.defineProperties(canvas, {
+    clientWidth: { value: 1200 },
+    clientHeight: { value: 800 },
+    setPointerCapture: { value: (id: number) => captures.add(id) },
+    releasePointerCapture: { value: (id: number) => captures.delete(id) },
+    hasPointerCapture: { value: (id: number) => captures.has(id) },
+  });
+  const setPosition = vi.fn();
+  const lookAt = vi.fn();
+  const camera = { fov: 52, aspectRatio: 1.5, nearClip: 0.01, farClip: 10_000 };
+  const entity = {
+    camera,
+    setPosition,
+    lookAt,
+    right: new Vec3(1, 0, 0),
+    up: new Vec3(0, 1, 0),
+  } as unknown as Entity;
+  const controls = new ViewerControls(canvas, entity);
+  return { canvas, camera, controls, setPosition, lookAt };
+}
+
+describe("ViewerControls", () => {
+  it("does not move the camera for a click or sub-threshold pointer motion", () => {
+    const { canvas, controls, setPosition } = setup();
+    const initialUpdates = setPosition.mock.calls.length;
+
+    canvas.dispatchEvent(pointerEvent("pointerdown", 40, 40));
+    canvas.dispatchEvent(pointerEvent("pointermove", 41, 41));
+    canvas.dispatchEvent(pointerEvent("pointerup", 41, 41));
+
+    expect(setPosition).toHaveBeenCalledTimes(initialUpdates);
+    controls.destroy();
+  });
+
+  it("cancels an active camera gesture when another control takes ownership", () => {
+    const { canvas, controls, setPosition } = setup();
+    const initialUpdates = setPosition.mock.calls.length;
+
+    canvas.dispatchEvent(pointerEvent("pointerdown", 20, 20));
+    controls.cancelGesture();
+    canvas.dispatchEvent(pointerEvent("pointermove", 80, 80));
+
+    expect(setPosition).toHaveBeenCalledTimes(initialUpdates);
+    controls.destroy();
+  });
+
+  it("limits a single wheel event and can be destroyed repeatedly", () => {
+    const { canvas, controls } = setup();
+    const before = controls.cameraDistance;
+
+    canvas.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -1_000_000 }));
+
+    expect(controls.cameraDistance).toBeLessThan(before);
+    expect(controls.cameraDistance).toBeGreaterThanOrEqual(before * Math.exp(-0.24));
+    expect(() => { controls.destroy(); controls.destroy(); }).not.toThrow();
+  });
+
+  it("starts above the model and resets to an upright viewing direction", () => {
+    const { controls, setPosition } = setup();
+    const initialPosition = setPosition.mock.calls.at(-1)?.[0] as Vec3;
+
+    expect(initialPosition.y).toBeGreaterThan(0);
+    controls.fit(new BoundingBox(new Vec3(), new Vec3(1, 1, 1)), { resetDirection: true });
+
+    const resetPosition = setPosition.mock.calls.at(-1)?.[0] as Vec3;
+    expect(controls.cameraPitch).toBe(22);
+    expect(resetPosition.y).toBeGreaterThan(0);
+    controls.destroy();
+  });
+
+  it("frames tightly and shifts the model away from the transform panel", () => {
+    const { controls, lookAt } = setup();
+    const bounds = new BoundingBox(new Vec3(), new Vec3(1, 1, 1));
+    const oldBoundingSphereDistance = bounds.halfExtents.length() / Math.sin(26 * Math.PI / 180) * 1.18;
+
+    controls.fit(bounds, { resetDirection: true, occupancy: 0.85, rightInsetPx: 286 });
+
+    const viewTarget = lookAt.mock.calls.at(-1)?.[0] as Vec3;
+    expect(controls.cameraDistance).toBeLessThan(oldBoundingSphereDistance);
+    expect(viewTarget.x).toBeGreaterThan(bounds.center.x);
+    controls.destroy();
+  });
+
+  it("keeps the full ground grid inside dynamically updated clip planes", () => {
+    const { camera, controls } = setup();
+    controls.setSceneBounds(new BoundingBox(new Vec3(0, 1, 0), new Vec3(50, 1, 50)));
+    controls.fit(new BoundingBox(new Vec3(), new Vec3(1, 1, 1)), { occupancy: 0.85 });
+
+    expect(camera.nearClip).toBeLessThanOrEqual(0.001);
+    expect(camera.farClip).toBeGreaterThan(50);
+    controls.destroy();
+  });
+
+  it("snapshots, orbits, and restores the exact interactive camera state", () => {
+    const { controls } = setup();
+    const initial = controls.snapshot();
+
+    controls.orbitBy(15);
+    expect(controls.snapshot().yaw).toBe(initial.yaw + 15);
+
+    controls.restore(initial);
+    expect(controls.snapshot()).toEqual(initial);
+    controls.destroy();
+  });
+});

@@ -95,8 +95,8 @@ jobs:
         run: |
           package="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
           mkdir -p dist-artifacts
-          cp "$package" dist-artifacts/OOOSplat_0.2.0_amd64.deb
-          (cd dist-artifacts && sha256sum OOOSplat_0.2.0_amd64.deb > SHA256SUMS.txt)
+          cp "$package" dist-artifacts/OOOSplat_0.3.0_amd64.deb
+          (cd dist-artifacts && sha256sum OOOSplat_0.3.0_amd64.deb > SHA256SUMS.txt)
 
       - name: Upload Ubuntu installer
         uses: actions/upload-artifact@v7
