@@ -30,6 +30,12 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Read package version
+        id: package
+        run: |
+          version="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Rust
         run: |
           rustup update stable --no-self-update
@@ -91,15 +97,18 @@ jobs:
         run: |
           app="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
           dmg="$(find src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)"
+          version="${{ steps.package.outputs.version }}"
+          app_archive="OOOSplat-${version}-arm64-macos.app.zip"
+          dmg_name="OOOSplat-${version}-arm64-macos.dmg"
           mkdir -p dist-artifacts
-          ditto -c -k --sequesterRsrc --keepParent "$app" dist-artifacts/OOOSplat_0.3.0_arm64.app.zip
-          cp "$dmg" dist-artifacts/OOOSplat_0.3.0_arm64.dmg
-          (cd dist-artifacts && shasum -a 256 OOOSplat_0.3.0_arm64.app.zip OOOSplat_0.3.0_arm64.dmg > SHA256SUMS.txt)
+          ditto -c -k --sequesterRsrc --keepParent "$app" "dist-artifacts/$app_archive"
+          cp "$dmg" "dist-artifacts/$dmg_name"
+          (cd dist-artifacts && shasum -a 256 "$app_archive" "$dmg_name" > SHA256SUMS.txt)
 
       - name: Upload unsigned macOS Alpha
         uses: actions/upload-artifact@v7
         with:
-          name: OOOSplat-macOS-arm64-unsigned-alpha
+          name: OOOSplat-${{ steps.package.outputs.version }}-arm64-macos
           path: dist-artifacts/
           if-no-files-found: error
           retention-days: 14

@@ -29,6 +29,7 @@
     "verify:licenses:macos": "node scripts/verify-licenses.mjs",
     "build:bundle": "npm run verify:engines && npm run verify:licenses && npm run build",
     "build:bundle:windows": "npm run verify:engines:windows && npm run verify:licenses:windows && npm run build",
+    "package:windows": "npm run tauri -- build --bundles nsis && node scripts/collect-windows-installer.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri"

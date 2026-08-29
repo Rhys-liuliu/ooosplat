@@ -109,17 +109,17 @@ sudo apt install -y \
 
 请为显卡安装可用的 Vulkan 驱动（例如 NVIDIA 专有驱动，或 AMD/Intel 的 Mesa 驱动）。Ubuntu 24.04 仓库中的无 CUDA COLMAP 构建会自动使用 CPU；Brush 会在运行时选择可用的图形后端。完全 CPU-only 的软件 Vulkan 后端尚未完成端到端验证。
 
-从 GitHub Actions 下载 `OOOSplat-Ubuntu-24.04-x86_64-alpha` Artifact 后，可执行：
+从 GitHub Actions 下载 `OOOSplat-0.3.0-x64-linux` Artifact 后，可执行：
 
 ```bash
-sudo apt install ./OOOSplat_0.3.0_amd64.deb
+sudo apt install ./OOOSplat-0.3.0-x64-linux.deb
 ```
 
 `.deb` 会通过 Ubuntu 包管理器安装 FFmpeg、FFprobe 和 CPU 版 COLMAP；固定版本 Brush 已包含在安装包中。
 
 ## 安装与使用
 
-1. Windows 运行 `OOOSplat_0.3.0_x64-setup.exe`；Apple Silicon Mac 打开未签名 Alpha DMG 并将 OOOSplat 拖入“应用程序”；Ubuntu 24.04 使用 `sudo apt install ./OOOSplat_0.3.0_amd64.deb`。
+1. Windows 运行 `OOOSplat-0.3.0-x64-windows.exe`；Apple Silicon Mac 打开 `OOOSplat-0.3.0-arm64-macos.dmg` 并将 OOOSplat 拖入“应用程序”；Ubuntu 24.04 使用 `sudo apt install ./OOOSplat-0.3.0-x64-linux.deb`。
 2. 启动 OOOSplat，确认顶栏中的内置引擎状态正常。
 3. 在“01 创建新任务”中选择输入视频。
 4. 选择项目根目录；程序会记住上次使用的位置。
@@ -267,13 +267,13 @@ npm run verify:licenses
 ### 生成 Windows 安装包
 
 ```powershell
-npm run tauri -- build
+npm run package:windows
 ```
 
 NSIS 安装包输出到：
 
 ```text
-src-tauri\target\release\bundle\nsis\OOOSplat_0.3.0_x64-setup.exe
+dist-artifacts\OOOSplat-0.3.0-x64-windows.exe
 ```
 
 首次构建前必须运行 `npm run setup:engines`。`beforeBuildCommand` 会自动执行引擎校验和前端生产构建，但不会在打包过程中隐式访问网络。

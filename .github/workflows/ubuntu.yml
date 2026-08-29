@@ -23,6 +23,12 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Read package version
+        id: package
+        run: |
+          version="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Install Ubuntu dependencies
         run: |
           sudo apt-get update
@@ -78,8 +84,10 @@ jobs:
           package="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
           test -n "$package"
           test -s "$package"
+          expected_version="${{ steps.package.outputs.version }}"
+          actual_version="$(dpkg-deb --field "$package" Version)"
           test "$(dpkg-deb --field "$package" Architecture)" = "amd64"
-          test "$(dpkg-deb --field "$package" Version)" = "0.2.0"
+          test "$actual_version" = "$expected_version"
           dependencies="$(dpkg-deb --field "$package" Depends)"
           grep -Eq '(^|, )ffmpeg([ ,]|$)' <<<"$dependencies"
           grep -Eq '(^|, )colmap([ ,]|$)' <<<"$dependencies"
@@ -94,14 +102,16 @@ jobs:
       - name: Package downloadable files
         run: |
           package="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
+          version="${{ steps.package.outputs.version }}"
+          filename="OOOSplat-${version}-x64-linux.deb"
           mkdir -p dist-artifacts
-          cp "$package" dist-artifacts/OOOSplat_0.3.0_amd64.deb
-          (cd dist-artifacts && sha256sum OOOSplat_0.3.0_amd64.deb > SHA256SUMS.txt)
+          cp "$package" "dist-artifacts/$filename"
+          (cd dist-artifacts && sha256sum "$filename" > SHA256SUMS.txt)
 
       - name: Upload Ubuntu installer
         uses: actions/upload-artifact@v7
         with:
-          name: OOOSplat-Ubuntu-24.04-x86_64-alpha
+          name: OOOSplat-${{ steps.package.outputs.version }}-x64-linux
           path: dist-artifacts/
           if-no-files-found: error
           retention-days: 14
