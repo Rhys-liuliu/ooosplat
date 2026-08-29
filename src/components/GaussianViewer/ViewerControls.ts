@@ -18,6 +18,13 @@ export interface ViewerCameraState {
   horizontalFrameOffset: number;
 }
 
+export interface ViewerOrbitGuideState {
+  target: [number, number, number];
+  radius: number;
+  height: number;
+  angleDegrees: number;
+}
+
 export class ViewerControls {
   private static readonly DRAG_THRESHOLD = 3;
   private readonly canvas: HTMLCanvasElement;
@@ -89,6 +96,23 @@ export class ViewerControls {
       pitch: this.pitch,
       distance: this.distance,
       horizontalFrameOffset: this.horizontalFrameOffset,
+    };
+  }
+
+  orbitGuideState(): ViewerOrbitGuideState {
+    const pitch = this.pitch * Math.PI / 180;
+    const aspect = this.canvas.clientWidth / Math.max(this.canvas.clientHeight, 1)
+      || Math.max(this.camera.aspectRatio || 16 / 9, 0.01);
+    const horizontalDistance = this.distance * Math.cos(pitch);
+    const horizontalFrameShift = this.distance
+      * Math.tan((this.camera.fov * Math.PI) / 360)
+      * aspect
+      * this.horizontalFrameOffset;
+    return {
+      target: [this.target.x, this.target.y, this.target.z],
+      radius: Math.max(Math.hypot(horizontalDistance, horizontalFrameShift), 0.0001),
+      height: this.target.y + this.distance * Math.sin(pitch),
+      angleDegrees: this.yaw + Math.atan2(horizontalFrameShift, horizontalDistance) * 180 / Math.PI,
     };
   }
 

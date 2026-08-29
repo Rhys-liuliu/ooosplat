@@ -81,6 +81,7 @@ import {
   type GaussianVideoEncodingProgress,
 } from "./GaussianVideoExport";
 import { GroundGrid } from "./GroundGrid";
+import { OrbitAxisGuide } from "./OrbitAxisGuide";
 import {
   ORBIT_DEGREES_PER_SECOND,
   ORBIT_START_SECONDS,
@@ -132,7 +133,6 @@ const INITIAL_CAMERA_POSITION: [number, number, number] = [0, 0, 5];
 const IDENTITY_ROTATION: [number, number, number] = [0, 0, 0];
 const IDENTITY_SCALE: [number, number, number] = [1, 1, 1];
 const FIT_OCCUPANCY = 0.85;
-const TRANSFORM_PANEL_SAFE_INSET_PX = 286;
 const SQRT_THREE = Math.sqrt(3);
 
 function effectRadialLimit(fullBounds: BoundingBox, effectBounds: BoundingBox) {
@@ -219,6 +219,7 @@ const SplatScene = forwardRef<SplatSceneApi, {
   const splatRef = useRef<PcEntity>(null);
   const controlsRef = useRef<ViewerControls | null>(null);
   const gridRef = useRef<GroundGrid | null>(null);
+  const orbitAxisGuideRef = useRef<OrbitAxisGuide | null>(null);
   const appDestroyedRef = useRef(false);
   const modeRef = useRef<ViewerMode>(mode);
   const exportingRef = useRef(false);
@@ -264,8 +265,12 @@ const SplatScene = forwardRef<SplatSceneApi, {
   useEffect(() => {
     modeRef.current = mode;
     gridRef.current?.setVisible(mode === "adjust");
-    if (mode === "preview") replay();
-    else setAnimationUniforms(false, animationElapsedRef.current);
+    orbitAxisGuideRef.current?.setVisible(mode === "preview" && !exportingRef.current);
+    if (mode === "preview") {
+      replay();
+    } else {
+      setAnimationUniforms(false, animationElapsedRef.current);
+    }
   }, [mode, replay, setAnimationUniforms]);
 
   useEffect(() => {
@@ -276,6 +281,8 @@ const SplatScene = forwardRef<SplatSceneApi, {
       controlsRef.current = null;
       gridRef.current?.destroy();
       gridRef.current = null;
+      orbitAxisGuideRef.current?.destroy();
+      orbitAxisGuideRef.current = null;
     });
     return () => { handle.off(); };
   }, [app]);
@@ -358,6 +365,12 @@ const SplatScene = forwardRef<SplatSceneApi, {
     if (!modelBounds) return null;
     const component = animationComponentRef.current;
     const effectBounds = transformedEffectBounds() ?? modelBounds;
+    orbitAxisGuideRef.current?.setModelSpan(Math.max(
+      modelBounds.halfExtents.x,
+      modelBounds.halfExtents.y,
+      modelBounds.halfExtents.z,
+      0.0001,
+    ) * 2);
     if (component) {
       component.setParameter(
         "uOoosplatEffectCenter",
@@ -405,7 +418,7 @@ const SplatScene = forwardRef<SplatSceneApi, {
     controls.fit(transformed, {
       resetDirection,
       occupancy: FIT_OCCUPANCY,
-      rightInsetPx: TRANSFORM_PANEL_SAFE_INSET_PX,
+      rightInsetPx: 0,
     });
     return true;
   }, [asset, syncSceneBounds]);
@@ -432,6 +445,15 @@ const SplatScene = forwardRef<SplatSceneApi, {
     const grid = new GroundGrid(app, gridBounds);
     grid.setVisible(modeRef.current === "adjust");
     gridRef.current = grid;
+    const modelSpan = Math.max(
+      gridBounds.halfExtents.x,
+      gridBounds.halfExtents.y,
+      gridBounds.halfExtents.z,
+      0.0001,
+    ) * 2;
+    const orbitAxisGuide = new OrbitAxisGuide(app, controls, modelSpan);
+    orbitAxisGuide.setVisible(modeRef.current === "preview");
+    orbitAxisGuideRef.current = orbitAxisGuide;
     syncSceneBounds();
     setAnimationUniforms(modeRef.current === "preview", animationElapsedRef.current);
 
@@ -471,6 +493,8 @@ const SplatScene = forwardRef<SplatSceneApi, {
       if (controlsRef.current === controls) controlsRef.current = null;
       grid.destroy();
       if (gridRef.current === grid) gridRef.current = null;
+      orbitAxisGuide.destroy();
+      if (orbitAxisGuideRef.current === orbitAxisGuide) orbitAxisGuideRef.current = null;
       if (!appDestroyedRef.current && animationComponentRef.current === component && component.entity.gsplat === component) {
         component.workBufferUpdate = WORKBUFFER_UPDATE_AUTO;
         component.setParameter("uOoosplatAnimationEnabled", 0);
@@ -513,6 +537,7 @@ const SplatScene = forwardRef<SplatSceneApi, {
     const previousFov = cameraEntity.camera.fov;
     const previousEnabled = controls.enabled;
     const previousGridVisible = gridRef.current?.isVisible ?? false;
+    const previousOrbitAxisVisible = orbitAxisGuideRef.current?.isVisible ?? false;
     const logo = await loadWatermarkLogo(appLogo);
     const outputCanvas = document.createElement("canvas");
     outputCanvas.width = GAUSSIAN_VIDEO_WIDTH;
@@ -538,6 +563,7 @@ const SplatScene = forwardRef<SplatSceneApi, {
     exportingRef.current = true;
     controls.enabled = false;
     gridRef.current?.setVisible(false);
+    orbitAxisGuideRef.current?.setVisible(false);
     cameraEntity.camera.renderTarget = videoRenderTarget;
     cameraEntity.camera.fov = verticalFovForCapture(previousFov, captureRegion.height);
     setAnimationUniforms(true, 0);
@@ -584,6 +610,7 @@ const SplatScene = forwardRef<SplatSceneApi, {
       controls.restore(cameraState);
       controls.enabled = previousEnabled;
       gridRef.current?.setVisible(previousGridVisible && modeRef.current === "adjust");
+      orbitAxisGuideRef.current?.setVisible(previousOrbitAxisVisible && modeRef.current === "preview");
       cameraEntity.camera.renderTarget = previousRenderTarget;
       cameraEntity.camera.fov = previousFov;
       videoTexture.destroy();
@@ -898,7 +925,8 @@ export function GaussianViewer({ onExit, onDisposed, pipelineRunning }: {
         {mode === "preview" && <div className="animation-hud">
           <span className={`animation-pulse phase-${animationStatus.phase}`} />
           <b>{phaseLabels[animationStatus.phase]}</b>
-          <span>{animationStatus.elapsedSeconds.toFixed(1)}s</span>
+          <span className="animation-time">{animationStatus.elapsedSeconds.toFixed(1)}s</span>
+          <span className="orbit-axis-key"><i aria-hidden="true" />旋转轴 Y · 24 秒/圈</span>
         </div>}
         {mode === "preview" && videoBusy && <div className="video-export-overlay">
           <div><LoaderCircle className="spin" size={20} /><strong>{videoButtonLabel}</strong></div>

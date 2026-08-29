@@ -117,4 +117,22 @@ describe("ViewerControls", () => {
     expect(controls.snapshot()).toEqual(initial);
     controls.destroy();
   });
+
+  it("reports the current Y-axis orbit center, radius, height, and direction", () => {
+    const { controls } = setup();
+    controls.fit(new BoundingBox(new Vec3(3, 4, 5), new Vec3(2, 1, 2)), { occupancy: 0.85 });
+    const initial = controls.orbitGuideState();
+
+    expect(initial.target).toEqual([3, 4, 5]);
+    expect(initial.radius).toBeGreaterThan(0);
+    expect(initial.height).toBeGreaterThan(initial.target[1]);
+
+    controls.orbitBy(15);
+    const rotated = controls.orbitGuideState();
+    expect(rotated.radius).toBeCloseTo(initial.radius);
+    expect(rotated.height).toBeCloseTo(initial.height);
+    expect(rotated.angleDegrees).toBeCloseTo(initial.angleDegrees + 15);
+    controls.destroy();
+  });
+
 });
