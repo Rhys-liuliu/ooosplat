@@ -2,7 +2,8 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import type { ColmapAccelerationStatus, EngineStatus, FramePlan, GaussianExportProgress, GaussianExportResult, GaussianPreviewDescriptor, GaussianTransform, PipelineEvent, PipelineResult, ProjectOverview, ProjectSummary, Quality, VideoInfo } from "../types/pipeline";
+import type { ColmapAccelerationStatus, EngineStatus, FramePlan, GaussianExportProgress, GaussianExportResult, GaussianPreviewDescriptor, GaussianTransform, GaussianVideoExportResult, GaussianVideoExportSession, PipelineEvent, PipelineResult, ProjectOverview, ProjectSummary, Quality, VideoInfo } from "../types/pipeline";
+import { previewAssetUrl } from "./previewAssetUrl";
 
 const inTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -29,15 +30,27 @@ export async function onPipelineEvent(handler: (event: PipelineEvent) => void): 
 
 export async function prepareGaussianPreview(projectId: string): Promise<GaussianPreviewDescriptor & { assetUrl: string }> {
   const descriptor = await invoke<GaussianPreviewDescriptor>("prepare_gaussian_preview", { projectId });
-  return { ...descriptor, assetUrl: convertFileSrc(descriptor.modelPath) };
+  return {
+    ...descriptor,
+    assetUrl: previewAssetUrl(convertFileSrc(descriptor.assetPath), "previewSession", crypto.randomUUID()),
+  };
 }
 export async function releaseGaussianPreview(projectId: string): Promise<void> { return invoke("release_gaussian_preview", { projectId }); }
 export async function saveGaussianTransform(projectId: string, transform: GaussianTransform): Promise<GaussianTransform> { return invoke("save_gaussian_transform", { projectId, transform }); }
 export async function exportTransformedGaussian(projectId: string, transform: GaussianTransform): Promise<GaussianExportResult> { return invoke("export_transformed_gaussian", { projectId, transform }); }
 export async function onGaussianExportProgress(handler: (event: GaussianExportProgress) => void): Promise<UnlistenFn> { return listen<GaussianExportProgress>("gaussian-export-progress", ({ payload }) => handler(payload)); }
+export async function beginGaussianVideoExport(projectId: string): Promise<GaussianVideoExportSession> { return invoke("begin_gaussian_video_export", { projectId }); }
+export async function commitGaussianVideoExport(exportId: string, bytes: Uint8Array): Promise<GaussianVideoExportResult> {
+  return invoke("commit_gaussian_video_export", bytes, { headers: { "x-ooosplat-export-id": exportId } });
+}
+export async function cancelGaussianVideoExport(exportId: string): Promise<void> { return invoke("cancel_gaussian_video_export", { exportId }); }
 
 export async function revealProject(project: ProjectSummary): Promise<void> {
   await revealItemInDir(project.finalPly ?? project.projectPath);
+}
+
+export async function revealFile(path: string): Promise<void> {
+  await revealItemInDir(path);
 }
 
 export async function confirmAndDeleteProject(project: ProjectSummary, beforeDelete?: () => void | Promise<void>): Promise<boolean> {

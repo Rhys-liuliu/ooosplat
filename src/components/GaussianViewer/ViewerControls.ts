@@ -1,21 +1,46 @@
 import { BoundingBox, Entity, Vec3, type CameraComponent } from "playcanvas";
 
+const DEFAULT_YAW = 35;
+const DEFAULT_PITCH = 22;
+const DEFAULT_OCCUPANCY = 0.85;
+
+export interface FitViewOptions {
+  resetDirection?: boolean;
+  occupancy?: number;
+  rightInsetPx?: number;
+}
+
+export interface ViewerCameraState {
+  target: [number, number, number];
+  yaw: number;
+  pitch: number;
+  distance: number;
+  horizontalFrameOffset: number;
+}
+
 export class ViewerControls {
+  private static readonly DRAG_THRESHOLD = 3;
   private readonly canvas: HTMLCanvasElement;
   private readonly cameraEntity: Entity;
   private readonly camera: CameraComponent;
   private target = new Vec3();
-  private yaw = 35;
-  private pitch = -22;
+  private yaw = DEFAULT_YAW;
+  private pitch = DEFAULT_PITCH;
   private distance = 5;
+  private sceneBounds: BoundingBox | null = null;
+  private horizontalFrameOffset = 0;
   private pointerId: number | null = null;
   private mode: "orbit" | "pan" | null = null;
+  private startX = 0;
+  private startY = 0;
   private lastX = 0;
   private lastY = 0;
-  enabled = true;
+  private dragging = false;
+  private destroyed = false;
+  private _enabled = true;
 
   constructor(canvas: HTMLCanvasElement, cameraEntity: Entity) {
-    if (!cameraEntity.camera) throw new Error("Preview camera component is unavailable");
+    if (!cameraEntity.camera) throw new Error("预览相机组件不可用");
     this.canvas = canvas;
     this.cameraEntity = cameraEntity;
     this.camera = cameraEntity.camera;
@@ -29,6 +54,9 @@ export class ViewerControls {
   }
 
   destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.cancelGesture();
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
@@ -37,45 +65,191 @@ export class ViewerControls {
     this.canvas.removeEventListener("contextmenu", this.preventContextMenu);
   }
 
-  fit(bounds: BoundingBox, resetDirection = false) {
-    if (resetDirection) {
-      this.yaw = 35;
-      this.pitch = -22;
-    }
-    this.target.copy(bounds.center);
-    const radius = Math.max(bounds.halfExtents.length(), 0.01);
-    const halfFov = (this.camera.fov * Math.PI) / 360;
-    this.distance = Math.max(radius / Math.sin(halfFov) * 1.18, 0.05);
-    this.camera.nearClip = Math.max(this.distance - radius * 2.5, 0.001);
-    this.camera.farClip = Math.max(this.distance + radius * 6, 100);
+  get enabled() {
+    return this._enabled;
+  }
+
+  set enabled(value: boolean) {
+    this._enabled = value;
+    if (!value) this.cancelGesture();
+  }
+
+  get cameraDistance() {
+    return this.distance;
+  }
+
+  get cameraPitch() {
+    return this.pitch;
+  }
+
+  snapshot(): ViewerCameraState {
+    return {
+      target: [this.target.x, this.target.y, this.target.z],
+      yaw: this.yaw,
+      pitch: this.pitch,
+      distance: this.distance,
+      horizontalFrameOffset: this.horizontalFrameOffset,
+    };
+  }
+
+  restore(state: ViewerCameraState) {
+    this.target.set(...state.target);
+    this.yaw = state.yaw;
+    this.pitch = state.pitch;
+    this.distance = state.distance;
+    this.horizontalFrameOffset = state.horizontalFrameOffset;
     this.updateCamera();
   }
 
-  private updateCamera() {
+  orbitBy(degrees: number) {
+    if (!Number.isFinite(degrees) || degrees === 0) return;
+    this.yaw += degrees;
+    this.updateCamera();
+  }
+
+  setOrbitYaw(yaw: number) {
+    if (!Number.isFinite(yaw)) return;
+    this.yaw = yaw;
+    this.updateCamera();
+  }
+
+  setSceneBounds(bounds: BoundingBox) {
+    this.sceneBounds = bounds.clone();
+    this.updateCamera();
+  }
+
+  cancelGesture() {
+    this.pointerId = null;
+    this.mode = null;
+    this.dragging = false;
+  }
+
+  fit(bounds: BoundingBox, options: FitViewOptions = {}) {
+    if (options.resetDirection) {
+      this.yaw = DEFAULT_YAW;
+      this.pitch = DEFAULT_PITCH;
+    }
+
+    const occupancy = Math.max(0.5, Math.min(0.98, options.occupancy ?? DEFAULT_OCCUPANCY));
+    const width = Math.max(this.canvas.clientWidth, 1);
+    const height = Math.max(this.canvas.clientHeight, 1);
+    const aspect = width > 1 && height > 1 ? width / height : Math.max(this.camera.aspectRatio || 16 / 9, 0.01);
+    const rightInset = width > 1 ? Math.max(0, Math.min(options.rightInsetPx ?? 0, width * 0.45)) : 0;
+    const usableWidthRatio = Math.max(0.55, (width - rightInset) / width);
+    const halfVerticalFov = (this.camera.fov * Math.PI) / 360;
+    const verticalCapacity = Math.max(Math.tan(halfVerticalFov) * occupancy, 0.001);
+    const horizontalCapacity = Math.max(verticalCapacity * aspect * usableWidthRatio, 0.001);
+    const { forward, right, up } = this.cameraBasis();
+    const center = bounds.center;
+    const half = bounds.halfExtents;
+    let requiredDistance = 0.05;
+
+    for (const x of [-half.x, half.x]) {
+      for (const y of [-half.y, half.y]) {
+        for (const z of [-half.z, half.z]) {
+          const corner = new Vec3(x, y, z);
+          const horizontal = Math.abs(corner.dot(right));
+          const vertical = Math.abs(corner.dot(up));
+          const depth = corner.dot(forward);
+          requiredDistance = Math.max(
+            requiredDistance,
+            horizontal / horizontalCapacity - depth,
+            vertical / verticalCapacity - depth,
+            -depth + 0.01,
+          );
+        }
+      }
+    }
+
+    this.target.copy(center);
+    this.distance = Math.max(requiredDistance, 0.05);
+    this.horizontalFrameOffset = width > 1 ? rightInset / width : 0;
+    this.updateCamera();
+  }
+
+  private cameraBasis() {
     const yaw = this.yaw * Math.PI / 180;
     const pitch = this.pitch * Math.PI / 180;
-    const horizontal = Math.cos(pitch) * this.distance;
-    this.cameraEntity.setPosition(
-      this.target.x + Math.sin(yaw) * horizontal,
-      this.target.y + Math.sin(pitch) * this.distance,
-      this.target.z + Math.cos(yaw) * horizontal,
+    const offset = new Vec3(
+      Math.sin(yaw) * Math.cos(pitch),
+      Math.sin(pitch),
+      Math.cos(yaw) * Math.cos(pitch),
     );
-    this.cameraEntity.lookAt(this.target);
+    const forward = offset.clone().mulScalar(-1);
+    const right = new Vec3().cross(forward, Vec3.UP).normalize();
+    const up = new Vec3().cross(right, forward).normalize();
+    return { offset, forward, right, up };
+  }
+
+  private updateCamera() {
+    const { offset, forward, right } = this.cameraBasis();
+    const canvasAspect = this.canvas.clientWidth / Math.max(this.canvas.clientHeight, 1);
+    const aspect = canvasAspect > 0 ? canvasAspect : Math.max(this.camera.aspectRatio || 16 / 9, 0.01);
+    const halfVerticalFov = (this.camera.fov * Math.PI) / 360;
+    const viewTarget = this.target.clone().add(
+      right.mulScalar(this.distance * Math.tan(halfVerticalFov) * aspect * this.horizontalFrameOffset),
+    );
+    const position = viewTarget.clone().add(offset.mulScalar(this.distance));
+    this.cameraEntity.setPosition(position);
+    this.cameraEntity.lookAt(viewTarget);
+    this.updateClipPlanes(position, forward);
+  }
+
+  private updateClipPlanes(cameraPosition: Vec3, forward: Vec3) {
+    const bounds = this.sceneBounds;
+    if (!bounds) {
+      this.camera.nearClip = Math.max(this.distance * 0.001, 0.0001);
+      this.camera.farClip = Math.max(this.distance * 10, 100);
+      return;
+    }
+
+    const center = bounds.center;
+    const half = bounds.halfExtents;
+    let minimumDepth = Number.POSITIVE_INFINITY;
+    let maximumDepth = 0;
+    let crossesCameraPlane = false;
+
+    for (const x of [-half.x, half.x]) {
+      for (const y of [-half.y, half.y]) {
+        for (const z of [-half.z, half.z]) {
+          const depth = new Vec3(center.x + x, center.y + y, center.z + z)
+            .sub(cameraPosition)
+            .dot(forward);
+          if (depth <= 0) crossesCameraPlane = true;
+          else minimumDepth = Math.min(minimumDepth, depth);
+          maximumDepth = Math.max(maximumDepth, depth);
+        }
+      }
+    }
+
+    const near = crossesCameraPlane || !Number.isFinite(minimumDepth)
+      ? 0.0001
+      : Math.max(minimumDepth * 0.2, 0.0001);
+    this.camera.nearClip = near;
+    this.camera.farClip = Math.max(maximumDepth * 1.25, near + 1, 10);
   }
 
   private preventContextMenu = (event: MouseEvent) => event.preventDefault();
 
   private onPointerDown = (event: PointerEvent) => {
-    if (!this.enabled || (event.button !== 0 && event.button !== 2)) return;
+    if (this.destroyed || !this.enabled || (event.button !== 0 && event.button !== 2)) return;
     this.pointerId = event.pointerId;
     this.mode = event.button === 0 ? "orbit" : "pan";
+    this.startX = event.clientX;
+    this.startY = event.clientY;
     this.lastX = event.clientX;
     this.lastY = event.clientY;
+    this.dragging = false;
     this.canvas.setPointerCapture(event.pointerId);
   };
 
   private onPointerMove = (event: PointerEvent) => {
-    if (!this.enabled || this.pointerId !== event.pointerId || !this.mode) return;
+    if (this.destroyed || !this.enabled || this.pointerId !== event.pointerId || !this.mode) return;
+    if (!this.dragging) {
+      const distance = Math.hypot(event.clientX - this.startX, event.clientY - this.startY);
+      if (distance < ViewerControls.DRAG_THRESHOLD) return;
+      this.dragging = true;
+    }
     const dx = event.clientX - this.lastX;
     const dy = event.clientY - this.lastY;
     this.lastX = event.clientX;
@@ -94,14 +268,15 @@ export class ViewerControls {
   private onPointerUp = (event: PointerEvent) => {
     if (this.pointerId !== event.pointerId) return;
     if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
-    this.pointerId = null;
-    this.mode = null;
+    this.cancelGesture();
   };
 
   private onWheel = (event: WheelEvent) => {
-    if (!this.enabled) return;
+    if (this.destroyed || !this.enabled) return;
     event.preventDefault();
-    this.distance = Math.max(0.01, Math.min(1_000_000, this.distance * Math.exp(event.deltaY * 0.001)));
+    const modeScale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? Math.max(this.canvas.clientHeight, 800) : 1;
+    const delta = Math.max(-240, Math.min(240, event.deltaY * modeScale));
+    this.distance = Math.max(0.01, Math.min(1_000_000, this.distance * Math.exp(delta * 0.001)));
     this.updateCamera();
   };
 }

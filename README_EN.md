@@ -6,13 +6,31 @@
   <img src="assets/readme-logo.svg" alt="OOOSplat Logo" width="180">
 </p>
 
-OOOSplat is a local Windows desktop application that converts video into 3D Gaussian Splatting projects. Its release package bundles FFmpeg, FFprobe, a CUDA-enabled COLMAP build, and Brush, so users do not need to configure the system `PATH` or install native engines separately. Large engine binaries are not stored in the source repository; the build setup restores them from pinned sources and verifies their SHA-256 hashes.
+OOOSplat is a local Windows desktop application that turns an ordinary orbit video into a 3D Gaussian Splatting project in one workflow. Choose a video, project directory, and quality preset, and OOOSplat automatically handles frame extraction, camera reconstruction, training, PLY publishing, preview, adjustment, and export.
 
-Current version: **0.1.0**
+FFmpeg, FFprobe, a CUDA-enabled COLMAP build, and Brush are bundled with the installer, so users do not need to configure the system `PATH` or install native engines separately. Every generation stage runs on the user's own CPU and GPU; input media, project data, models, and logs do not need to be uploaded to a cloud reconstruction or training service. Large engine binaries are restored from pinned sources and verified with SHA-256 before a release build.
+
+Current version: **0.3.0**
 
 See the [OOOSplat Roadmap](ROADMAP.md) for planned work.
 
-> The current release generates and manages `final.ply`, previews Gaussian Splats inside OOOSplat, edits whole-model transforms, and exports non-destructive transformed copies.
+> The current release generates and manages `final.ply`, previews Gaussian Splats inside OOOSplat, edits whole-model transforms, plays staged animations, and exports non-destructive results.
+
+## Why OOOSplat
+
+- **One-click Gaussian generation**: Select an input video, project directory, and quality preset. OOOSplat then runs FFmpeg frame extraction, COLMAP camera reconstruction, Brush training, and `final.ply` publishing without manual engine setup or command-line orchestration.
+- **Security and data control**: Source media, frames, reconstruction data, models, and logs stay in the local project directory by default and do not need to be uploaded to the cloud. Non-destructive transforms and exports preserve the original `final.ply`.
+- **Fully local compute**: Reconstruction and training run on the user's own machine without remote compute services. COLMAP automatically uses a compatible local NVIDIA GPU when available and falls back to CPU otherwise, keeping both processing and data under the user's control.
+
+## Interface Preview
+
+### Create and Manage Tasks
+
+![OOOSplat create-task and task-history workspace](assets/screenshots/task-workspace.png)
+
+### Preview and Adjust Gaussian Splats
+
+![OOOSplat Gaussian Splat preview and transform workspace](assets/screenshots/gaussian-preview.png)
 
 ## Key Features
 
@@ -25,9 +43,10 @@ See the [OOOSplat Roadmap](ROADMAP.md) for planned work.
 - Cancel tasks and terminate the full child-process tree with a Windows Job Object.
 - Choose a custom projects root, defaulting to `Documents\SplatStudio\Projects`.
 - Track completed, failed, interrupted, and cancelled tasks.
-- Preview completed `.ply` projects under “03 Preview” with Orbit, Pan, Zoom, Fit View, and Reset View.
-- Move, rotate, and uniformly scale the complete Gaussian model with synchronized gizmos and numeric fields, including Ctrl+Z / Ctrl+Shift+Z.
+- Preview completed `.ply` projects under “03 Preview” with Orbit, Pan, and Zoom. Switching between Adjust and Animation does not reload the model or reset the camera.
+- Use Adjust mode to edit whole-model position, rotation, and uniform scale, with undo and redo.
 - Persist transforms in `project.json` and export numbered `edited.ply` copies without overwriting `final.ply`.
+- Play a 5-second reveal, an 8-second shockwave, and a continuous camera orbit, then export a watermarked 1080×1920, 30 fps, 23-second H.264 MP4.
 - Reveal `final.ply` in File Explorer or move the complete project to the Windows Recycle Bin.
 - Resize the left and right panels by dragging the divider, and scale the full interface from 80% to 140%.
 - Support Chinese characters, spaces, long file names, and UNC project paths.
@@ -51,6 +70,7 @@ The task stops when COLMAP registers fewer than 50% of the input images. A 50%�
 
 - Windows 10 or Windows 11, x64.
 - WebView2 Runtime support.
+- Video export requires WebCodecs AVC support in WebView2. Animation mode remains available when encoding is unavailable, and the UI reports why export is disabled.
 - An available GPU graphics backend for Brush training; a discrete GPU is recommended.
 - COLMAP CUDA acceleration requires an NVIDIA GPU, Windows driver 528.33 or newer, and Compute Capability 5.0 or higher. OOOSplat automatically uses CPU when these requirements are not met; no manual configuration is required.
 - Enough disk space for a source-video copy, extracted frames, COLMAP data, Brush intermediate files, and the final PLY. Long videos and higher quality presets can require substantial space.
@@ -60,14 +80,15 @@ The bundled COLMAP build supports both CPU and CUDA GPU execution. OOOSplat auto
 
 ## Installation and Use
 
-1. Run `OOOSplat_0.1.0_x64-setup.exe`.
+1. Run `OOOSplat_0.3.0_x64-setup.exe`.
 2. Start OOOSplat and confirm that the bundled engine status in the top bar is healthy.
 3. Select an input video under “01 Create New Task.”
 4. Choose the projects root; OOOSplat remembers the last location.
 5. Select the Fast, Balanced, or Detailed quality preset.
 6. Review the automatically detected COLMAP acceleration status and its explanation, then select “Start Generation.”
 7. Follow live stages, metrics, and logs on the left. When processing finishes, select “Preview” under “02 Task History.”
-8. Browse or transform the model under “03 Preview.” Changes are saved automatically; “Export Gaussian” writes a new edited PLY.
+8. Edit the model in the “Adjust” mode under “03 Preview.” Changes are saved automatically; “Export Gaussian” writes a new edited PLY.
+9. Switch to “Animation” for the portrait composition and staged playback. “Export Video” writes a 23-second portrait MP4 into the project directory.
 
 Usage notes:
 
@@ -96,6 +117,8 @@ Each generation creates a separate directory under the projects root:
   project.json          Project metadata and result metrics
   edited.ply            First optional non-destructive transform export
   edited-2.ply          Later exports are automatically numbered
+  preview.mp4           First optional animation-preview video export
+  preview-2.mp4         Later video exports are automatically numbered
   state.json            Pipeline state
   source\
     input.<ext>         Source-video copy
@@ -179,7 +202,7 @@ npm run tauri -- build
 The NSIS installer is written to:
 
 ```text
-src-tauri\target\release\bundle\nsis\OOOSplat_0.1.0_x64-setup.exe
+src-tauri\target\release\bundle\nsis\OOOSplat_0.3.0_x64-setup.exe
 ```
 
 Run `npm run setup:engines` before the first build. Tauri's `beforeBuildCommand` automatically runs the engine checks and frontend production build, but it does not access the network implicitly during packaging.
@@ -223,14 +246,15 @@ Each project keeps a source-video copy, extracted frames, COLMAP data, and Brush
 
 ### Can I view final.ply directly in OOOSplat?
 
-Yes. Select “Preview” on a completed project in “02 Task History” to browse its `.ply` under “03 Preview” and edit the whole model's position, rotation, and uniform scale. Per-Gaussian selection, deletion, cropping, cleanup, `.sog`, and `.spz` are not part of this first preview release.
+Yes. Select “Preview” on a completed project in “02 Task History” to open its `.ply` in the dedicated preview workspace. “Adjust” edits the whole model's position, rotation, and uniform scale. “Animation” adds a 5-second reveal, an 8-second shockwave, a continuous orbit, and watermarked portrait MP4 export. Per-Gaussian selection, deletion, cropping, cleanup, `.sog`, and `.spz` are not supported yet.
 
 ## Technology
 
 - Desktop framework: Tauri 2
 - Backend: Rust and Tokio
 - Frontend: React 19, TypeScript, Vite, and Zustand
-- Gaussian preview: PlayCanvas Engine and PlayCanvas React
+- Gaussian preview and animation: PlayCanvas Engine and PlayCanvas React
+- Video encoding and muxing: WebCodecs and Mediabunny
 - Native pipeline: FFmpeg / FFprobe, COLMAP, and Brush
 - Windows process management: Job Object
 
@@ -251,7 +275,7 @@ OOOSplat first-party code and accompanying documentation are released under the 
 
 ### Third-party Components
 
-FFmpeg / FFprobe, COLMAP, Brush, and PlayCanvas components remain subject to their own licenses and do not become Apache-2.0 software merely because they are distributed with OOOSplat. See [Third-party Notices](licenses/THIRD_PARTY_NOTICES.txt) and the [Engine Manifest](engines/manifest.json) for direct components, versions, sources, and license files. This list is not represented as a complete audit of transitive dependencies such as Qt, Boost, or Ceres.
+FFmpeg / FFprobe, COLMAP, Brush, PlayCanvas, and Mediabunny remain subject to their own licenses and do not become Apache-2.0 software merely because they are distributed with OOOSplat. See [Third-party Notices](licenses/THIRD_PARTY_NOTICES.txt) and the [Engine Manifest](engines/manifest.json) for direct components, versions, sources, and license files. This list is not represented as a complete audit of transitive dependencies such as Qt, Boost, or Ceres.
 
 ### Brand
 

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GaussianPreviewDescriptor, GaussianTool, GaussianTransform } from "../types/pipeline";
+import type { GaussianPreviewDescriptor, GaussianTransform } from "../types/pipeline";
 
 export const IDENTITY_TRANSFORM: GaussianTransform = {
   position: [0, 0, 0],
@@ -18,7 +18,6 @@ const equal = (a: GaussianTransform, b: GaussianTransform) =>
 
 interface GaussianTransformState {
   descriptor: (GaussianPreviewDescriptor & { assetUrl: string }) | null;
-  tool: GaussianTool;
   transform: GaussianTransform;
   history: GaussianTransform[];
   future: GaussianTransform[];
@@ -28,7 +27,6 @@ interface GaussianTransformState {
   saveError: string | null;
   load: (descriptor: GaussianPreviewDescriptor & { assetUrl: string }) => void;
   close: () => void;
-  setTool: (tool: GaussianTool) => void;
   beginTransaction: () => void;
   setTransformLive: (transform: GaussianTransform) => void;
   commitTransaction: () => void;
@@ -39,7 +37,6 @@ interface GaussianTransformState {
 
 export const useGaussianTransformStore = create<GaussianTransformState>((set, get) => ({
   descriptor: null,
-  tool: "select",
   transform: clone(IDENTITY_TRANSFORM),
   history: [],
   future: [],
@@ -47,9 +44,8 @@ export const useGaussianTransformStore = create<GaussianTransformState>((set, ge
   revision: 0,
   saveState: "saved",
   saveError: null,
-  load: (descriptor) => set({ descriptor, transform: clone(descriptor.transform), history: [], future: [], transactionStart: null, tool: "select", revision: 0, saveState: "saved", saveError: null }),
-  close: () => set({ descriptor: null, transform: clone(IDENTITY_TRANSFORM), history: [], future: [], transactionStart: null, tool: "select", revision: 0, saveState: "saved", saveError: null }),
-  setTool: (tool) => set({ tool }),
+  load: (descriptor) => set({ descriptor, transform: clone(descriptor.transform), history: [], future: [], transactionStart: null, revision: 0, saveState: "saved", saveError: null }),
+  close: () => set({ descriptor: null, transform: clone(IDENTITY_TRANSFORM), history: [], future: [], transactionStart: null, revision: 0, saveState: "saved", saveError: null }),
   beginTransaction: () => {
     if (!get().transactionStart) set({ transactionStart: clone(get().transform) });
   },
@@ -58,7 +54,7 @@ export const useGaussianTransformStore = create<GaussianTransformState>((set, ge
     const state = get();
     const start = state.transactionStart;
     if (!start || equal(start, state.transform)) {
-      set({ transactionStart: null, saveState: start ? "saved" : state.saveState });
+      set({ transactionStart: null });
       return;
     }
     set({ history: [...state.history, start].slice(-100), future: [], transactionStart: null, revision: state.revision + 1, saveState: "dirty" });

@@ -81,6 +81,16 @@ impl Quaternion {
         .normalized()
     }
 
+    fn conjugate(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+            w: self.w,
+        }
+        .normalized()
+    }
+
     fn transform_point(self, [x, y, z]: [f64; 3]) -> [f64; 3] {
         let ix = self.w * x + self.y * z - self.z * y;
         let iy = self.w * y + self.z * x - self.x * z;
@@ -118,6 +128,21 @@ impl Quaternion {
             1.0 - (xx + yy),
         ]
     }
+}
+
+/// Project transforms are stored in PlayCanvas world coordinates while Gaussian
+/// PLY rows use the PLY convention (180 degrees around Z). Convert the user
+/// transform back into PLY space before baking so reopening the exported file
+/// reproduces the same world-space result.
+fn engine_transform_to_ply(transform: GaussianTransform) -> (GaussianTransform, Quaternion) {
+    let ply_to_engine = Quaternion::from_euler_degrees([0.0, 0.0, 180.0]);
+    let engine_to_ply = ply_to_engine.conjugate();
+    let engine_rotation = Quaternion::from_euler_degrees(transform.rotation);
+    let ply_rotation = engine_to_ply.mul(engine_rotation).mul(ply_to_engine);
+    let mut mapped = transform;
+    mapped.position = engine_to_ply.transform_point(transform.position);
+    // transform_row consumes the conjugated quaternion separately.
+    (mapped, ply_rotation)
 }
 
 fn unsupported(detail: impl Into<String>) -> SplatError {
@@ -306,10 +331,10 @@ pub fn export_transformed_ply(
     mut progress: impl FnMut(u64, u64),
 ) -> Result<(PathBuf, PlyInfo)> {
     let transform = transform.validate()?;
+    let (transform, rotation) = engine_transform_to_ply(transform);
     let source = std::fs::canonicalize(source)?;
     let mut reader = BufReader::new(File::open(&source)?);
     let layout = parse_layout(&mut reader)?;
-    let rotation = Quaternion::from_euler_degrees(transform.rotation);
     let sh_rotation = ShRotation::new(rotation.matrix());
 
     let output = (1_u32..10_000)
@@ -629,6 +654,28 @@ mod tests {
     }
 
     #[test]
+    fn maps_playcanvas_world_transform_back_to_ply_coordinates() {
+        let transform = GaussianTransform {
+            position: [1.0, 2.0, 3.0],
+            rotation: [90.0, 0.0, 0.0],
+            scale: 1.0,
+        };
+        let (mapped, ply_rotation) = engine_transform_to_ply(transform);
+        assert!((mapped.position[0] + 1.0).abs() < 1e-10);
+        assert!((mapped.position[1] + 2.0).abs() < 1e-10);
+        assert!((mapped.position[2] - 3.0).abs() < 1e-10);
+
+        let ply_to_engine = Quaternion::from_euler_degrees([0.0, 0.0, 180.0]);
+        let source = [2.0, 3.0, 4.0];
+        let actual = ply_to_engine.transform_point(ply_rotation.transform_point(source));
+        let expected = Quaternion::from_euler_degrees(transform.rotation)
+            .transform_point(ply_to_engine.transform_point(source));
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+    }
+
+    #[test]
     fn z_rotation_matches_official_first_sh_band_mapping() {
         let rotation = ShRotation::new(Quaternion::from_euler_degrees([0.0, 0.0, 90.0]).matrix());
         let result = rotation.apply(&[1.0, 2.0, 3.0]);
@@ -662,7 +709,7 @@ mod tests {
         let mut row = vec![0_u8; layout.stride];
         reader.read_exact(&mut row).unwrap();
         let get = |name: &str| read_float(&row, layout.offsets[name]);
-        assert!((get("x") - 10.0).abs() < 1e-5);
+        assert!((get("x") + 10.0).abs() < 1e-5);
         assert!((get("y") - 2.0).abs() < 1e-5);
         assert!(get("z").abs() < 1e-5);
         assert!((get("scale_0") - 2.0_f64.ln()).abs() < 1e-5);

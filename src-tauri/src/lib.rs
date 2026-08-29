@@ -28,6 +28,9 @@ pub fn run_app() {
             commands::release_gaussian_preview,
             commands::save_gaussian_transform,
             commands::export_transformed_gaussian,
+            commands::begin_gaussian_video_export,
+            commands::commit_gaussian_video_export,
+            commands::cancel_gaussian_video_export,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run OOOSplat");

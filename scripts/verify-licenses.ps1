@@ -63,6 +63,7 @@ $requiredFiles = @(
     "licenses/NVIDIA-CUDA-Runtime.txt",
     "licenses/Brush-LICENSE.txt",
     "licenses/PlayCanvas-MIT.txt",
+    "licenses/Mediabunny-MPL-2.0.txt",
     "engines/manifest.json"
 )
 
@@ -88,7 +89,7 @@ $tauri = (Read-Utf8Text "src-tauri/tauri.conf.json") | ConvertFrom-Json
 Assert-True ($tauri.bundle.license -eq "Apache-2.0") "Tauri bundle license must be Apache-2.0."
 Assert-True ($tauri.bundle.licenseFile -eq "../LICENSE") "Tauri bundle licenseFile must point to ../LICENSE."
 $resourceNames = @($tauri.bundle.resources.PSObject.Properties.Name)
-foreach ($resource in "../LICENSE", "../NOTICE", "../TRADEMARK_POLICY.md", "../GENERATED_OUTPUTS.md", "../licenses/THIRD_PARTY_NOTICES.txt", "../licenses/FFmpeg-LGPL-2.1.txt", "../licenses/COLMAP-LICENSE.txt", "../licenses/NVIDIA-CUDA-Runtime.txt", "../licenses/Brush-LICENSE.txt", "../licenses/PlayCanvas-MIT.txt") {
+foreach ($resource in "../LICENSE", "../NOTICE", "../TRADEMARK_POLICY.md", "../GENERATED_OUTPUTS.md", "../licenses/THIRD_PARTY_NOTICES.txt", "../licenses/FFmpeg-LGPL-2.1.txt", "../licenses/COLMAP-LICENSE.txt", "../licenses/NVIDIA-CUDA-Runtime.txt", "../licenses/Brush-LICENSE.txt", "../licenses/PlayCanvas-MIT.txt", "../licenses/Mediabunny-MPL-2.0.txt") {
     Assert-True ($resourceNames -contains $resource) "Tauri resources are missing $resource."
 }
 
@@ -135,6 +136,13 @@ $playCanvasLicense = Read-Utf8Text "licenses/PlayCanvas-MIT.txt"
 Assert-Contains $playCanvasLicense "MIT License" "PlayCanvas license"
 Assert-Contains $playCanvasLicense "Copyright (c) 2011-2026 PlayCanvas Ltd." "PlayCanvas license"
 
+foreach ($term in "Mediabunny", "1.52.3", "MPL-2.0", "licenses/Mediabunny-MPL-2.0.txt", "https://github.com/Vanilagy/mediabunny/tree/v1.52.3") {
+    Assert-Contains $thirdParty $term "THIRD_PARTY_NOTICES.txt"
+}
+$mediabunnyLicense = Read-Utf8Text "licenses/Mediabunny-MPL-2.0.txt"
+Assert-Contains $mediabunnyLicense "Mozilla Public License Version 2.0" "Mediabunny license"
+Assert-Contains $mediabunnyLicense "2. License Grants and Conditions" "Mediabunny license"
+
 $ffmpegLicense = Read-Utf8Text "licenses/FFmpeg-LGPL-2.1.txt"
 Assert-Contains $ffmpegLicense "GNU LESSER GENERAL PUBLIC LICENSE" "FFmpeg license"
 Assert-Contains $ffmpegLicense "Version 2.1, February 1999" "FFmpeg license"
@@ -160,4 +168,4 @@ foreach ($term in "final.ply", "Apache License 2.0", "General Public License (GP
     Assert-Contains $outputs $term "Generated outputs policy"
 }
 
-Write-Host "Verified OOOSplat license metadata, 3 native engines, and PlayCanvas preview notices."
+Write-Host "Verified OOOSplat license metadata, 3 native engines, PlayCanvas preview notices, and Mediabunny video export notices."

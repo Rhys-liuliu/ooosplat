@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import {
   ChevronRight, CircleAlert, Clapperboard, Cpu, FileBox,
   Eye, FolderOpen, LoaderCircle, MapPin, Minus, Play, Plus, RotateCcw, Square, Trash2,
@@ -72,8 +72,8 @@ function engineReady(engine: EngineStatus) {
   return engine.canStart;
 }
 
-function ProjectRow({ project, busy, selected, onPreview, onDelete }: { project: ProjectSummary; busy: boolean; selected: boolean; onPreview: (project: ProjectSummary) => void; onDelete: (project: ProjectSummary) => void }) {
-  return <article className={selected ? "project-row selected" : "project-row"}>
+function ProjectRow({ project, busy, previewing, previewDisabled, onPreview, onDelete }: { project: ProjectSummary; busy: boolean; previewing: boolean; previewDisabled: boolean; onPreview: (project: ProjectSummary) => void; onDelete: (project: ProjectSummary) => void }) {
+  return <article className="project-row">
     <div className="project-row-main">
       <div className="project-title-line">
         <span className={`project-status ${project.status}`} />
@@ -90,7 +90,7 @@ function ProjectRow({ project, busy, selected, onPreview, onDelete }: { project:
       <div><dt>档位</dt><dd>{qualityLabel(project.quality)}</dd></div>
     </dl>
     <div className="project-actions">
-      {project.status === "completed" && <button className="preview-link" type="button" onClick={() => onPreview(project)}><Eye size={14} />{selected ? "正在预览" : "预览"}</button>}
+      {project.status === "completed" && <button className="preview-link" type="button" disabled={previewDisabled} onClick={() => onPreview(project)}>{previewing ? <LoaderCircle className="spin" size={14} /> : <Eye size={14} />}{previewing ? "正在打开" : "预览"}</button>}
       <button type="button" onClick={() => void revealProject(project)}><MapPin size={14} />在资源管理器中显示</button>
       <button className="danger-link" type="button" disabled={busy} onClick={() => onDelete(project)}><Trash2 size={14} />删除</button>
     </div>
@@ -99,19 +99,25 @@ function ProjectRow({ project, busy, selected, onPreview, onDelete }: { project:
 
 export function App() {
   const store = useAppStore();
-  const previewProjectId = useGaussianTransformStore((state) => state.descriptor?.projectId ?? null);
   const loadGaussian = useGaussianTransformStore((state) => state.load);
   const closeGaussian = useGaussianTransformStore((state) => state.close);
   const isRunning = store.phase === "running";
   const logEnd = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
+  const controlPaneRef = useRef<HTMLElement>(null);
+  const projectsPaneRef = useRef<HTMLElement>(null);
+  const taskScrollPositions = useRef({ control: 0, projects: 0 });
+  const previewReleasePromises = useRef(new Map<string, Promise<void>>());
+  const releasedPreviewProjects = useRef(new Set<string>());
   const runStartedAt = useRef<number | null>(null);
   const [liveElapsedMs, setLiveElapsedMs] = useState(0);
-  const [createPanePercent, setCreatePanePercent] = useState(() => Math.min(46, Math.max(22, readSavedNumber("ooo-splat-create-pane", 30))));
-  const [historyPanePercent, setHistoryPanePercent] = useState(() => Math.min(34, Math.max(18, readSavedNumber("ooo-splat-history-pane", 25))));
+  const [leftPanePercent, setLeftPanePercent] = useState(() => Math.min(68, Math.max(32, readSavedNumber("ooo-splat-left-pane", 44))));
   const [uiScale, setUiScale] = useState(() => Math.min(140, Math.max(80, readSavedNumber("ooo-splat-ui-scale", 100))));
-  const [resizingPane, setResizingPane] = useState<"create" | "history" | null>(null);
-  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [viewMode, setViewMode] = useState<"tasks" | "preview">("tasks");
+  const [openingPreviewProjectId, setOpeningPreviewProjectId] = useState<string | null>(null);
+  const [closingPreviewProjectId, setClosingPreviewProjectId] = useState<string | null>(null);
+  const [disposedPreviewProjectId, setDisposedPreviewProjectId] = useState<string | null>(null);
   const [showZoomControls, setShowZoomControls] = useState(false);
   const missingEngines = store.engines.filter((engine) => !engineReady(engine));
   const completed = useMemo(() => store.projects.filter((project) => project.status === "completed"), [store.projects]);
@@ -154,39 +160,32 @@ export function App() {
   }, [isRunning]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem("ooo-splat-create-pane", createPanePercent.toFixed(1));
-      window.localStorage.setItem("ooo-splat-history-pane", historyPanePercent.toFixed(1));
-    } catch { /* optional preference */ }
-  }, [createPanePercent, historyPanePercent]);
-
-  useEffect(() => {
-    if (createPanePercent + historyPanePercent > 70) {
-      setHistoryPanePercent(Math.max(18, 70 - createPanePercent));
-    }
-  }, [createPanePercent, historyPanePercent]);
+    try { window.localStorage.setItem("ooo-splat-left-pane", leftPanePercent.toFixed(1)); } catch { /* optional preference */ }
+  }, [leftPanePercent]);
 
   useEffect(() => {
     try { window.localStorage.setItem("ooo-splat-ui-scale", String(uiScale)); } catch { /* optional preference */ }
   }, [uiScale]);
 
+  useEffect(() => {
+    if (viewMode !== "tasks") return;
+    const timer = window.setTimeout(() => {
+      if (controlPaneRef.current) controlPaneRef.current.scrollTop = taskScrollPositions.current.control;
+      if (projectsPaneRef.current) projectsPaneRef.current.scrollTop = taskScrollPositions.current.projects;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [viewMode]);
+
   const resizePanes = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!resizingPane || !workspaceRef.current) return;
+    if (!isResizing || !workspaceRef.current) return;
     const bounds = workspaceRef.current.getBoundingClientRect();
     const next = ((event.clientX - bounds.left) / bounds.width) * 100;
-    if (resizingPane === "create") {
-      const boundary = createPanePercent + historyPanePercent;
-      const create = Math.min(46, Math.max(22, Math.min(next, boundary - 18)));
-      setCreatePanePercent(create);
-      setHistoryPanePercent(boundary - create);
-    } else {
-      setHistoryPanePercent(Math.min(34, Math.max(18, Math.min(next - createPanePercent, 70 - createPanePercent))));
-    }
+    setLeftPanePercent(Math.min(68, Math.max(32, next)));
   };
 
   const stopResizing = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    setResizingPane(null);
+    setIsResizing(false);
   };
 
   const changeScale = (delta: number) => setUiScale((current) => Math.min(140, Math.max(80, current + delta)));
@@ -249,42 +248,94 @@ export function App() {
 
   const removeProject = async (project: ProjectSummary) => {
     try {
-      const isPreviewed = useGaussianTransformStore.getState().descriptor?.projectId === project.id;
-      if (await confirmAndDeleteProject(project, isPreviewed ? () => {
-          closeGaussian();
-          setPreviewExpanded(false);
-        } : undefined)) {
+      if (await confirmAndDeleteProject(project)) {
         await refreshProjects();
       }
     } catch (error) { store.setError(messageOf(error)); }
   };
 
+  const releasePreviewSession = useCallback((projectId: string) => {
+    if (releasedPreviewProjects.current.has(projectId)) return Promise.resolve();
+    const pending = previewReleasePromises.current.get(projectId);
+    if (pending) return pending;
+    const release = releaseGaussianPreview(projectId)
+      .then(() => { releasedPreviewProjects.current.add(projectId); })
+      .finally(() => { previewReleasePromises.current.delete(projectId); });
+    previewReleasePromises.current.set(projectId, release);
+    return release;
+  }, []);
+
   const previewProject = async (project: ProjectSummary) => {
-    if (project.status !== "completed") return;
+    if (project.status !== "completed" || openingPreviewProjectId || closingPreviewProjectId) return;
     const previous = useGaussianTransformStore.getState().descriptor?.projectId;
+    setOpeningPreviewProjectId(project.id);
+    setDisposedPreviewProjectId(null);
+    store.setError(null);
     try {
       closeGaussian();
-      if (previous && previous !== project.id) await releaseGaussianPreview(previous);
-      loadGaussian(await prepareGaussianPreview(project.id));
+      if (previous && previous !== project.id) await releasePreviewSession(previous);
+      const descriptor = await prepareGaussianPreview(project.id);
+      releasedPreviewProjects.current.delete(project.id);
+      loadGaussian(descriptor);
+      taskScrollPositions.current = {
+        control: controlPaneRef.current?.scrollTop ?? 0,
+        projects: projectsPaneRef.current?.scrollTop ?? 0,
+      };
+      setViewMode("preview");
     } catch (error) {
       store.setError(messageOf(error));
+    } finally {
+      setOpeningPreviewProjectId(null);
     }
   };
 
-  useEffect(() => () => {
+  const exitPreview = async () => {
     const projectId = useGaussianTransformStore.getState().descriptor?.projectId;
-    if (projectId) void releaseGaussianPreview(projectId);
+    if (closingPreviewProjectId) return;
+    if (projectId) setClosingPreviewProjectId(projectId);
+    setViewMode("tasks");
+  };
+
+  const previewRendererDisposed = useCallback((projectId: string) => {
+    setDisposedPreviewProjectId(projectId);
   }, []);
 
-  return <main className={resizingPane ? "app-shell resizing" : "app-shell"}>
+  useEffect(() => {
+    if (viewMode !== "tasks" || !closingPreviewProjectId || disposedPreviewProjectId !== closingPreviewProjectId) return;
+    const projectId = closingPreviewProjectId;
+    void releasePreviewSession(projectId)
+      .catch((error) => store.setError(messageOf(error)))
+      .finally(() => {
+        if (useGaussianTransformStore.getState().descriptor?.projectId === projectId) closeGaussian();
+        setDisposedPreviewProjectId((current) => current === projectId ? null : current);
+        setClosingPreviewProjectId((current) => current === projectId ? null : current);
+      });
+  }, [viewMode, closingPreviewProjectId, disposedPreviewProjectId, closeGaussian, releasePreviewSession, store.setError]);
+
+  useEffect(() => () => {
+    const projectId = useGaussianTransformStore.getState().descriptor?.projectId;
+    if (projectId) {
+      queueMicrotask(() => void releasePreviewSession(projectId).catch(() => undefined));
+    }
+  }, [releasePreviewSession]);
+
+  if (viewMode === "preview") {
+    return <main className="app-shell preview-mode">
+      <Suspense fallback={<section className="preview-pane active preview-workspace"><div className="preview-empty"><LoaderCircle className="spin" size={24} /><strong>正在准备预览模块</strong></div></section>}>
+        <GaussianViewer onExit={exitPreview} onDisposed={previewRendererDisposed} pipelineRunning={isRunning} />
+      </Suspense>
+    </main>;
+  }
+
+  return <main className={isResizing ? "app-shell resizing" : "app-shell"}>
     <div className="interface-frame" style={{ "--ui-scale": uiScale / 100, "--ui-size": `${10000 / uiScale}%` } as CSSProperties}>
     <header className="topbar">
-      <div className="brand-lockup"><span className="brand-mark"><img src={appLogo} alt="" aria-hidden="true" /></span><span className="brand-name">OOO<span>Splat</span></span><span className="version-tag">LOCAL / 0.1.0</span></div>
+      <div className="brand-lockup"><span className="brand-mark"><img src={appLogo} alt="" aria-hidden="true" /></span><span className="brand-name">OOO<span>Splat</span></span><span className="version-tag">LOCAL / 0.3.0</span></div>
       <div className="engine-summary"><span className={missingEngines.length ? "status-light warning" : "status-light"} />{store.engines.length === 0 ? "正在检查内置引擎" : missingEngines.length ? `${missingEngines.length} 个引擎异常` : "FFmpeg · COLMAP · Brush 就绪"}</div>
     </header>
 
-    <section className={previewExpanded ? "workspace preview-expanded" : "workspace"} ref={workspaceRef} style={{ "--create-pane-width": `${createPanePercent}%`, "--history-pane-width": `${historyPanePercent}%` } as CSSProperties}>
-      <section className="control-pane" aria-label="生成控制台">
+    <section className="workspace" ref={workspaceRef} style={{ "--left-pane-width": `${leftPanePercent}%` } as CSSProperties}>
+      <section className="control-pane" ref={controlPaneRef} aria-label="生成控制台">
         <div className="pane-header"><h1>01 创建新任务</h1><span className={isRunning ? "run-state active" : "run-state"}>{isRunning ? "运行中" : "待命"}</span></div>
 
         <div className="form-section">
@@ -327,7 +378,7 @@ export function App() {
 
         {!isRunning && <button className="primary-action" type="button" disabled={!store.videoPath || !store.plan || !store.projectsRoot || store.phase === "analyzing" || missingEngines.length > 0} onClick={() => void generate()}>
           {store.phase === "analyzing" ? <LoaderCircle className="spin" size={17} /> : <Play size={16} fill="currentColor" />}
-          {store.phase === "analyzing" ? "正在分析视频" : "开始生成"}<ChevronRight size={16} />
+          {store.phase === "analyzing" ? "正在分析视频" : "开始生成"}
         </button>}
 
         {(isRunning || store.events.length > 0) && <section className="live-process">
@@ -358,63 +409,36 @@ export function App() {
         tabIndex={0}
         aria-label="调整创建任务与历史任务面板宽度"
         aria-orientation="vertical"
-        aria-valuemin={22}
-        aria-valuemax={46}
-        aria-valuenow={Math.round(createPanePercent)}
+        aria-valuemin={32}
+        aria-valuemax={68}
+        aria-valuenow={Math.round(leftPanePercent)}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           event.currentTarget.setPointerCapture(event.pointerId);
-          setResizingPane("create");
+          setIsResizing(true);
         }}
         onPointerMove={resizePanes}
         onPointerUp={stopResizing}
         onPointerCancel={stopResizing}
-        onDoubleClick={() => { setCreatePanePercent(30); setHistoryPanePercent(25); }}
+        onDoubleClick={() => setLeftPanePercent(44)}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
             event.preventDefault();
-            setCreatePanePercent((current) => Math.min(46, 70 - historyPanePercent, Math.max(22, current + (event.key === "ArrowLeft" ? -2 : 2))));
+            setLeftPanePercent((current) => Math.min(68, Math.max(32, current + (event.key === "ArrowLeft" ? -2 : 2))));
           }
-          if (event.key === "Home") { setCreatePanePercent(30); setHistoryPanePercent(25); }
+          if (event.key === "Home") setLeftPanePercent(44);
         }}
       ><span /></div>
 
-      <section className="projects-pane" aria-label="项目成果">
+      <section className="projects-pane" ref={projectsPaneRef} aria-label="项目成果">
         <div className="pane-header"><h2>02 历史任务</h2><button className="refresh-action" type="button" disabled={isRunning} onClick={() => void refreshProjects()}><RotateCcw size={14} />刷新</button></div>
         <div className="archive-summary"><span><b>{completed.length}</b><small>已完成</small></span><span><b>{unfinished.length}</b><small>未完成</small></span></div>
 
         {completed.length === 0 && unfinished.length === 0 && <div className="empty-state"><FileBox size={30} strokeWidth={1.4} /><strong>还没有生成项目</strong><p>选择视频和项目目录后开始生成，成果会自动出现在这里。</p></div>}
 
-        {completed.length > 0 && <div className="project-group"><div className="group-heading"><span>已完成</span><small>{completed.length} 个项目</small></div>{completed.map((project) => <ProjectRow key={project.id} project={project} busy={isRunning} selected={previewProjectId === project.id} onPreview={(item) => void previewProject(item)} onDelete={(item) => void removeProject(item)} />)}</div>}
-        {unfinished.length > 0 && <div className="project-group unfinished"><div className="group-heading"><span>未完成</span><small>{unfinished.length} 个项目</small></div>{unfinished.map((project) => <ProjectRow key={project.id} project={project} busy={isRunning} selected={false} onPreview={() => undefined} onDelete={(item) => void removeProject(item)} />)}</div>}
+        {completed.length > 0 && <div className="project-group"><div className="group-heading"><span>已完成</span><small>{completed.length} 个项目</small></div>{completed.map((project) => <ProjectRow key={project.id} project={project} busy={isRunning} previewing={openingPreviewProjectId === project.id} previewDisabled={openingPreviewProjectId !== null || closingPreviewProjectId !== null} onPreview={(item) => void previewProject(item)} onDelete={(item) => void removeProject(item)} />)}</div>}
+        {unfinished.length > 0 && <div className="project-group unfinished"><div className="group-heading"><span>未完成</span><small>{unfinished.length} 个项目</small></div>{unfinished.map((project) => <ProjectRow key={project.id} project={project} busy={isRunning} previewing={false} previewDisabled onPreview={() => undefined} onDelete={(item) => void removeProject(item)} />)}</div>}
       </section>
-
-      <div
-        className="pane-resizer history-resizer"
-        role="separator"
-        tabIndex={0}
-        aria-label="调整历史任务与预览面板宽度"
-        aria-orientation="vertical"
-        aria-valuemin={18}
-        aria-valuemax={34}
-        aria-valuenow={Math.round(historyPanePercent)}
-        onPointerDown={(event) => { if (event.button === 0) { event.currentTarget.setPointerCapture(event.pointerId); setResizingPane("history"); } }}
-        onPointerMove={resizePanes}
-        onPointerUp={stopResizing}
-        onPointerCancel={stopResizing}
-        onDoubleClick={() => { setCreatePanePercent(30); setHistoryPanePercent(25); }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-            event.preventDefault();
-            setHistoryPanePercent((current) => Math.min(34, 70 - createPanePercent, Math.max(18, current + (event.key === "ArrowLeft" ? -2 : 2))));
-          }
-          if (event.key === "Home") { setCreatePanePercent(30); setHistoryPanePercent(25); }
-        }}
-      ><span /></div>
-
-      <Suspense fallback={<section className="preview-pane"><div className="preview-empty"><LoaderCircle className="spin" size={24} /><strong>正在准备预览模块</strong></div></section>}>
-        <GaussianViewer expanded={previewExpanded} onToggleExpanded={() => setPreviewExpanded((value) => !value)} pipelineRunning={isRunning} />
-      </Suspense>
     </section>
     </div>
 

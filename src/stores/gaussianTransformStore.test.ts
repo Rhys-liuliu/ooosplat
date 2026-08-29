@@ -25,4 +25,11 @@ describe("GaussianTransformStore", () => {
     }
     expect(useGaussianTransformStore.getState().history).toHaveLength(100);
   });
+
+  it("does not overwrite an in-flight save state for a no-op transaction", () => {
+    useGaussianTransformStore.getState().setSaveState("saving");
+    useGaussianTransformStore.getState().beginTransaction();
+    useGaussianTransformStore.getState().commitTransaction();
+    expect(useGaussianTransformStore.getState().saveState).toBe("saving");
+  });
 });

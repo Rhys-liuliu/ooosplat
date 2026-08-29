@@ -74,6 +74,16 @@ License: MIT
 License text: licenses/PlayCanvas-MIT.txt
 Upstream source: https://github.com/playcanvas/splat-transform/tree/v3.3.0
 
+Mediabunny
+----------
+Version: 1.52.3
+Use: WebCodecs AVC encoding and MP4 muxing for portrait Gaussian preview videos.
+License: Mozilla Public License 2.0
+SPDX identifier: MPL-2.0
+License text: licenses/Mediabunny-MPL-2.0.txt
+Upstream source: https://github.com/Vanilagy/mediabunny/tree/v1.52.3
+Distributed source package: https://www.npmjs.com/package/mediabunny/v/1.52.3
+
 Exact native engine archive and executable SHA-256 values are recorded in
 engines/manifest.json. JavaScript versions are locked in package-lock.json.
 This notice does not modify any component license.

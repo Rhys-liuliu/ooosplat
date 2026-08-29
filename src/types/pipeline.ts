@@ -77,7 +77,6 @@ export interface ProjectSummary {
 export interface ProjectOverview { projectsRoot: string; projects: ProjectSummary[]; }
 
 export type GaussianFormat = "ply" | "sog" | "spz";
-export type GaussianTool = "select" | "move" | "rotate" | "scale";
 export interface GaussianTransform {
   position: [number, number, number];
   rotation: [number, number, number];
@@ -86,6 +85,7 @@ export interface GaussianTransform {
 export interface GaussianPreviewDescriptor {
   projectId: string;
   modelPath: string;
+  assetPath: string;
   format: GaussianFormat;
   fileSize: number;
   splatCount: number;
@@ -101,4 +101,18 @@ export interface GaussianExportResult {
   path: string;
   fileSize: number;
   splatCount: number;
+}
+
+export interface GaussianVideoExportSession {
+  exportId: string;
+  destinationPath: string;
+}
+
+export interface GaussianVideoExportResult {
+  path: string;
+  fileSize: number;
+  width: number;
+  height: number;
+  fps: number;
+  durationMs: number;
 }

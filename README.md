@@ -6,11 +6,31 @@
   <img src="assets/readme-logo.svg" alt="OOOSplat Logo" width="180">
 </p>
 
-OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面应用。发布流程会将 FFmpeg、FFprobe、COLMAP（CUDA 构建）和 Brush 打包进安装程序，用户无需配置系统 `PATH` 或单独安装原生引擎。源码仓库不保存这些大型二进制文件，而是通过固定来源和 SHA-256 在构建前恢复。
+OOOSplat 是一款将普通环绕拍摄视频一键转换为 3D Gaussian Splatting 的本地 Windows 桌面应用。选择视频、项目目录和质量档位后，应用会自动完成抽帧、相机重建、训练与 PLY 发布，并可直接预览、调整和导出结果。
 
-当前版本：**0.1.0**
+FFmpeg、FFprobe、COLMAP（CUDA 构建）和 Brush 随安装程序提供，用户无需配置系统 `PATH` 或单独安装原生引擎。整个生成流程使用本机 CPU 和 GPU，输入素材、工程文件、模型与日志无需上传到云端重建或训练服务。源码仓库不保存这些大型引擎二进制文件，而是通过固定来源和 SHA-256 在构建前恢复。
 
-> 当前版本可从视频生成并管理 `final.ply`，并在应用内完成 Gaussian Splat 预览、整体 Transform 编辑和非破坏式导出。
+当前版本：**0.3.0**
+
+查看 [OOOSplat Roadmap](ROADMAP.md) 了解后续规划。
+
+> 当前版本可从视频生成并管理 `final.ply`，并在应用内完成 Gaussian Splat 预览、整体 Transform 编辑、动画预览以及非破坏式导出。
+
+## 核心优势
+
+- **一键生成高斯泼溅**：只需选择输入视频、项目目录和质量档位，即可自动完成 FFmpeg 抽帧、COLMAP 相机重建、Brush 训练和 `final.ply` 发布，无需手动拼接命令或配置引擎。
+- **安全可控**：素材、抽帧、重建数据、模型和日志默认只保存在用户选择的本地项目目录，无需上传云端；Transform 与导出采用非破坏式流程，不覆盖原始 `final.ply`。
+- **完全本地化算力**：重建与训练均在用户自己的电脑上运行，不调用远程计算服务。满足要求时 COLMAP 自动使用本机 NVIDIA GPU 加速，否则回退 CPU，过程和数据始终由用户掌控。
+
+## 界面预览
+
+### 创建与管理任务
+
+![OOOSplat 创建新任务与历史任务界面](assets/screenshots/task-workspace.png)
+
+### 高斯泼溅预览与调整
+
+![OOOSplat 高斯泼溅预览与 Transform 调整界面](assets/screenshots/gaussian-preview.png)
 
 ## 主要功能
 
@@ -23,9 +43,10 @@ OOOSplat 是一款面向 Windows 的本地视频转 3D Gaussian Splatting 桌面
 - 支持取消任务，并通过 Windows Job Object 终止整个子进程树。
 - 支持自定义项目根目录，默认位置为 `Documents\SplatStudio\Projects`。
 - 自动记录已完成、失败、中断和取消的历史任务。
-- 在“03 预览”中直接加载历史项目的 `.ply`，支持 Orbit、Pan、Zoom、Fit View 和 Reset View。
-- 支持整个 Gaussian 模型的 Move、Rotate、Uniform Scale、属性面板同步以及 Ctrl+Z / Ctrl+Shift+Z。
+- 在“03 预览”中直接加载历史项目的 `.ply`，支持 Orbit、Pan 和 Zoom；“调整 / 动画”双模式切换不会重新加载模型或重置相机。
+- 调整模式支持整个 Gaussian 模型的位置、旋转、等比缩放，以及撤销 / 重做。
 - Transform 自动保存到 `project.json`；导出生成 `edited.ply`、`edited-2.ply` 等新文件，不覆盖原始 `final.ply`。
+- 动画模式依次播放 5 秒显现、8 秒冲击波和持续相机环绕，并可导出带 OOOSplat 水印的 1080×1920、30 fps、23 秒 H.264 MP4。
 - 可在资源管理器中定位 `final.ply`，或将整个项目移入 Windows 回收站。
 - 可拖动中央分界线调整左右面板宽度；右下角支持 80%–140% 整体界面缩放。
 - 支持中文、空格、长文件名和 UNC 项目路径。
@@ -49,6 +70,7 @@ COLMAP 注册图像比例低于 50% 时任务停止；50%–80% 时给出质量�
 
 - Windows 10 或 Windows 11，x64。
 - 支持 WebView2 Runtime。
+- 视频导出需要 WebView2 提供 WebCodecs AVC 编码能力；不支持时仍可在“动画”模式播放效果，但“导出视频”会显示不可用原因。
 - Brush 训练需要可用的 GPU 图形后端，建议使用独立显卡。
 - COLMAP 的 CUDA 加速需要 NVIDIA 显卡、Windows 驱动 528.33 或更高版本，以及 Compute Capability 5.0 或更高版本；不满足要求时程序会自动使用 CPU，无需用户配置。
 - 项目磁盘需要容纳源视频副本、抽帧图像、COLMAP 数据、Brush 中间文件和最终 PLY。长视频或精细档位可能占用大量空间。
@@ -58,14 +80,15 @@ COLMAP 使用同时支持 CPU 与 CUDA GPU 的构建，运行前会自动选择�
 
 ## 安装与使用
 
-1. 运行 `OOOSplat_0.1.0_x64-setup.exe` 完成安装。
+1. 运行 OOOSplat安装包 完成安装。
 2. 启动 OOOSplat，确认顶栏中的内置引擎状态正常。
 3. 在“01 创建新任务”中选择输入视频。
 4. 选择项目根目录；程序会记住上次使用的位置。
 5. 选择“快速”“均衡”或“精细”档位。
 6. 查看自动检测到的 COLMAP 加速状态及原因，然后点击“开始生成”。
 7. 在左侧查看实时阶段、指标和日志；完成后，在“02 历史任务”中查看项目并点击“预览”。
-8. 在“03 预览”中浏览或调整模型，Transform 会自动保存；点击“Export Gaussian”生成新的 edited PLY。
+8. 在“03 预览”的“调整”模式中修改模型，Transform 会自动保存；点击“导出高斯”生成新的 edited PLY。
+9. 切换到“动画”可查看竖屏构图并重新播放效果；点击“导出视频”会在项目目录生成 23 秒竖屏 MP4。
 
 使用提示：
 
@@ -94,6 +117,8 @@ COLMAP 使用同时支持 CPU 与 CUDA GPU 的构建，运行前会自动选择�
   project.json          项目元数据与结果指标
   edited.ply            首次非破坏式 Transform 导出（可选）
   edited-2.ply          后续导出自动编号（可选）
+  preview.mp4           首次动画预览视频导出（可选）
+  preview-2.mp4         后续视频导出自动编号（可选）
   state.json            流水线状态
   source\
     input.<ext>         源视频副本
@@ -177,7 +202,7 @@ npm run tauri -- build
 NSIS 安装包输出到：
 
 ```text
-src-tauri\target\release\bundle\nsis\OOOSplat_0.1.0_x64-setup.exe
+src-tauri\target\release\bundle\nsis\OOOSplat_0.3.0_x64-setup.exe
 ```
 
 首次构建前必须运行 `npm run setup:engines`。`beforeBuildCommand` 会自动执行引擎校验和前端生产构建，但不会在打包过程中隐式访问网络。
@@ -221,14 +246,15 @@ cargo run --manifest-path src-tauri\Cargo.toml --bin splatstudio -- generate "D:
 
 ### 可以直接在应用中查看 final.ply 吗？
 
-可以。在“02 历史任务”中选择已完成项目并点击“预览”，即可在“03 预览”中浏览 `.ply`，调整整个模型的位置、旋转和等比缩放。当前不支持单个 Gaussian 选择、删除、裁剪或清理；`.sog` 和 `.spz` 也尚未开放。
+可以。在“02 历史任务”中选择已完成项目并点击“预览”，即可在独立预览工作区浏览 `.ply`。“调整”模式用于编辑整个模型的位置、旋转和等比缩放；“动画”模式提供 5 秒显现、8 秒冲击波、持续环绕以及带水印的竖屏 MP4 导出。当前不支持单个 Gaussian 选择、删除、裁剪或清理；`.sog` 和 `.spz` 也尚未开放。
 
 ## 技术栈
 
 - 桌面框架：Tauri 2
 - 后端：Rust、Tokio
 - 前端：React 19、TypeScript、Vite、Zustand
-- Gaussian 预览：PlayCanvas Engine、PlayCanvas React
+- Gaussian 预览与动画：PlayCanvas Engine、PlayCanvas React
+- 视频编码与封装：WebCodecs、Mediabunny
 - 原生流水线：FFmpeg / FFprobe、COLMAP、Brush
 - Windows 进程管理：Job Object
 
@@ -240,7 +266,7 @@ OOOSplat 的第一方代码及随附文档以 [Apache License 2.0](LICENSE) 发�
 
 ### 第三方组件
 
-FFmpeg / FFprobe、COLMAP、Brush 和 PlayCanvas 组件分别适用其自身许可证，不因与 OOOSplat 一同分发而改用 Apache-2.0。直接组件的版本、来源、许可证和许可证正文入口见 [第三方通知](licenses/THIRD_PARTY_NOTICES.txt) 与 [引擎清单](engines/manifest.json)。该清单不表示已经完成 Qt、Boost、Ceres 等传递依赖的完整许可审计。
+FFmpeg / FFprobe、COLMAP、Brush、PlayCanvas 和 Mediabunny 分别适用其自身许可证，不因与 OOOSplat 一同分发而改用 Apache-2.0。直接组件的版本、来源、许可证和许可证正文入口见 [第三方通知](licenses/THIRD_PARTY_NOTICES.txt) 与 [引擎清单](engines/manifest.json)。该清单不表示已经完成 Qt、Boost、Ceres 等传递依赖的完整许可审计。
 
 ### 品牌
 
