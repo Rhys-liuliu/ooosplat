@@ -24,6 +24,7 @@ use crate::{
         GaussianTransform, ProjectStatus,
     },
     reconstruction::{ply::inspect_gaussian_ply, splat_transform::export_transformed_ply},
+    telemetry::{PipelineTelemetrySession, TelemetryPreferences, TelemetryService},
     video::{FramePlan, FrameSelectionStrategy, UniformRatioFrameSelection, VideoInfo},
 };
 
@@ -156,16 +157,38 @@ pub async fn set_projects_root(
 }
 
 #[tauri::command]
+pub async fn initialize_telemetry(
+    telemetry: State<'_, TelemetryService>,
+) -> std::result::Result<TelemetryPreferences, SplatError> {
+    telemetry.initialize().await
+}
+
+#[tauri::command]
+pub async fn set_telemetry_consent(
+    telemetry: State<'_, TelemetryService>,
+    enabled: bool,
+) -> std::result::Result<TelemetryPreferences, SplatError> {
+    telemetry.set_consent(enabled).await
+}
+
+#[tauri::command]
 pub async fn start_pipeline(
     app: tauri::AppHandle,
     state: State<'_, PipelineController>,
+    telemetry: State<'_, TelemetryService>,
     path: String,
     quality: Quality,
     projects_root: String,
 ) -> std::result::Result<PipelineResult, SplatError> {
     let emitter = app.clone();
     let started = Instant::now();
+    let telemetry_session = Arc::new(PipelineTelemetrySession::new(
+        telemetry.inner().clone(),
+        quality,
+    ));
+    let event_telemetry = telemetry_session.clone();
     let runner = Arc::new(PipelineRunner::new(paths_for_app(&app), move |event| {
+        event_telemetry.observe(&event);
         let _ = emitter.emit("pipeline-event", event);
     }));
     {
@@ -175,9 +198,18 @@ pub async fn start_pipeline(
         }
         *active = Some(runner.clone());
     }
+    telemetry_session.generation_started();
     let result = runner
         .generate(Path::new(&path), quality, Path::new(&projects_root))
         .await;
+    match &result {
+        Ok(output) => telemetry_session.generation_completed(
+            output.duration_ms,
+            output.input_images,
+            output.source_duration_seconds,
+        ),
+        Err(error) => telemetry_session.generation_failed(error),
+    }
     if let Err(error) = &result {
         let stage = if matches!(error, SplatError::Cancelled) {
             crate::pipeline::PipelineStage::Cancelled

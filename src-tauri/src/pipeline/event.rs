@@ -5,7 +5,7 @@ use crate::engines::ColmapAccelerationStatus;
 
 use super::{progress::stage_progress_range, PipelineStage};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EventKind {
     Stage,

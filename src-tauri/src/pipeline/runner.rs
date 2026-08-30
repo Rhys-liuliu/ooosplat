@@ -55,6 +55,8 @@ pub struct PipelineResult {
     pub completed_at: chrono::DateTime<Utc>,
     pub warning: Option<String>,
     pub logs_directory: PathBuf,
+    #[serde(skip)]
+    pub(crate) source_duration_seconds: f64,
 }
 
 #[derive(Clone)]
@@ -360,6 +362,7 @@ impl PipelineRunner {
                 Some(&paths.logs),
             )
             .await?;
+        let source_duration_seconds = prepared.video.duration;
         state.video = Some(prepared.video);
         let mut frames = FrameState::from(&prepared.plan);
         frames.extracted_frames = Some(prepared.extracted_frames);
@@ -572,6 +575,7 @@ impl PipelineRunner {
             completed_at,
             warning,
             logs_directory: paths.logs.clone(),
+            source_duration_seconds,
         })
     }
 

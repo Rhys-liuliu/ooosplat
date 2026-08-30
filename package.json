@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "verify:telemetry": "node scripts/verify-telemetry-endpoint.mjs",
+    "verify:telemetry:release": "node scripts/verify-telemetry-endpoint.mjs --required",
     "setup:engines": "node scripts/engine-command.mjs setup",
     "verify:engines": "node scripts/engine-command.mjs verify",
     "verify:licenses": "node scripts/verify-licenses.mjs",
@@ -29,7 +31,7 @@
     "verify:licenses:macos": "node scripts/verify-licenses.mjs",
     "build:bundle": "npm run verify:engines && npm run verify:licenses && npm run build",
     "build:bundle:windows": "npm run verify:engines:windows && npm run verify:licenses:windows && npm run build",
-    "package:windows": "npm run tauri -- build --bundles nsis && node scripts/collect-windows-installer.mjs",
+    "package:windows": "npm run verify:telemetry:release && npm run tauri -- build --bundles nsis && node scripts/collect-windows-installer.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri"

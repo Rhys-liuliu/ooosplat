@@ -47,6 +47,7 @@ jobs:
 
       - name: Frontend and license checks
         run: |
+          npm run verify:telemetry:release
           npm test
           npm run build
           npm run verify:licenses

@@ -2,18 +2,21 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import {
   ChevronRight, CircleAlert, Clapperboard, Cpu, FileBox,
   Eye, FolderOpen, LoaderCircle, MapPin, Minus, Play, Plus, RotateCcw, Square, Trash2,
-  Zap,
+  Settings2, Zap,
 } from "lucide-react";
 import appLogo from "../../assets/app-icon.svg";
+import { TelemetryPreferences } from "../components/TelemetryPreferences";
 import {
   cancelPipeline, checkEngines, confirmAndDeleteProject, getProjectOverview,
   onPipelineEvent, probeAndPlan, revealProject, selectProjectsRoot, selectVideo,
   setProjectsRoot, startPipeline, prepareGaussianPreview, releaseGaussianPreview,
+  initializeTelemetry, setTelemetryConsent,
 } from "../lib/backend";
 import { startElapsedTicker } from "../lib/elapsedTimer";
 import { useAppStore } from "../stores/appStore";
 import { useGaussianTransformStore } from "../stores/gaussianTransformStore";
 import type { EngineStatus, ProjectStatus, ProjectSummary, Quality } from "../types/pipeline";
+import type { TelemetryPreferences as TelemetryPreferencesState } from "../types/telemetry";
 
 const GaussianViewer = lazy(() => import("../components/GaussianViewer").then((module) => ({ default: module.GaussianViewer })));
 
@@ -119,6 +122,9 @@ export function App() {
   const [closingPreviewProjectId, setClosingPreviewProjectId] = useState<string | null>(null);
   const [disposedPreviewProjectId, setDisposedPreviewProjectId] = useState<string | null>(null);
   const [showZoomControls, setShowZoomControls] = useState(false);
+  const [telemetryPreferences, setTelemetryPreferences] = useState<TelemetryPreferencesState | null>(null);
+  const [privacySettingsOpen, setPrivacySettingsOpen] = useState(false);
+  const [telemetryBusy, setTelemetryBusy] = useState(false);
   const missingEngines = store.engines.filter((engine) => !engineReady(engine));
   const completed = useMemo(() => store.projects.filter((project) => project.status === "completed"), [store.projects]);
   const unfinished = useMemo(() => store.projects.filter((project) => project.status !== "completed"), [store.projects]);
@@ -140,6 +146,12 @@ export function App() {
       })
       .catch((error) => store.setError(messageOf(error)));
   }, [store.setEngines, store.setProjects, store.setProjectsRoot, store.setColmapAcceleration, store.setError]);
+
+  useEffect(() => {
+    void initializeTelemetry()
+      .then(setTelemetryPreferences)
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let unlisten: undefined | (() => void);
@@ -189,6 +201,19 @@ export function App() {
   };
 
   const changeScale = (delta: number) => setUiScale((current) => Math.min(140, Math.max(80, current + delta)));
+
+  const changeTelemetryConsent = async (enabled: boolean) => {
+    if (telemetryBusy) return;
+    setTelemetryBusy(true);
+    try {
+      const preferences = await setTelemetryConsent(enabled);
+      setTelemetryPreferences(preferences);
+    } catch (error) {
+      store.setError(`无法保存隐私设置：${messageOf(error)}`);
+    } finally {
+      setTelemetryBusy(false);
+    }
+  };
 
   const analyze = async (path: string, quality: Quality) => {
     store.setPhase("analyzing");
@@ -331,7 +356,10 @@ export function App() {
     <div className="interface-frame" style={{ "--ui-scale": uiScale / 100, "--ui-size": `${10000 / uiScale}%` } as CSSProperties}>
     <header className="topbar">
       <div className="brand-lockup"><span className="brand-mark"><img src={appLogo} alt="" aria-hidden="true" /></span><span className="brand-name">OOO<span>Splat</span></span><span className="version-tag">LOCAL / 0.3.0</span></div>
-      <div className="engine-summary"><span className={missingEngines.length ? "status-light warning" : "status-light"} />{store.engines.length === 0 ? "正在检查内置引擎" : missingEngines.length ? `${missingEngines.length} 个引擎异常` : "FFmpeg · COLMAP · Brush 就绪"}</div>
+      <div className="topbar-actions">
+        {telemetryPreferences && <button className="settings-action" type="button" onClick={() => setPrivacySettingsOpen(true)}><Settings2 size={15} />设置</button>}
+        <div className="engine-summary"><span className={missingEngines.length ? "status-light warning" : "status-light"} />{store.engines.length === 0 ? "正在检查内置引擎" : missingEngines.length ? `${missingEngines.length} 个引擎异常` : "FFmpeg · COLMAP · Brush 就绪"}</div>
+      </div>
     </header>
 
     <section className="workspace" ref={workspaceRef} style={{ "--left-pane-width": `${leftPanePercent}%` } as CSSProperties}>
@@ -450,5 +478,7 @@ export function App() {
       </div>}
       <button className="zoom-trigger" type="button" aria-expanded={showZoomControls} onClick={() => setShowZoomControls((visible) => !visible)}>{uiScale}%</button>
     </aside>
+    {telemetryPreferences && !telemetryPreferences.consentDecided && <TelemetryPreferences mode="consent" preferences={telemetryPreferences} busy={telemetryBusy} onChange={(enabled) => void changeTelemetryConsent(enabled)} />}
+    {telemetryPreferences && privacySettingsOpen && <TelemetryPreferences mode="settings" preferences={telemetryPreferences} busy={telemetryBusy} onChange={(enabled) => void changeTelemetryConsent(enabled)} onClose={() => setPrivacySettingsOpen(false)} />}
   </main>;
 }

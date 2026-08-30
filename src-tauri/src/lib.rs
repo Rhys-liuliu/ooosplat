@@ -6,6 +6,7 @@ pub mod presets;
 pub mod process;
 pub mod project;
 pub mod reconstruction;
+pub mod telemetry;
 pub mod video;
 
 pub fn run_app() {
@@ -14,6 +15,7 @@ pub fn run_app() {
         .plugin(tauri_plugin_opener::init())
         .manage(commands::PipelineController::default())
         .manage(commands::PreviewController::default())
+        .manage(telemetry::TelemetryService::new())
         .invoke_handler(tauri::generate_handler![
             commands::check_engines,
             commands::check_colmap_acceleration,
@@ -31,6 +33,8 @@ pub fn run_app() {
             commands::begin_gaussian_video_export,
             commands::commit_gaussian_video_export,
             commands::cancel_gaussian_video_export,
+            commands::initialize_telemetry,
+            commands::set_telemetry_consent,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run OOOSplat");

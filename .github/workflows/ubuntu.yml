@@ -12,7 +12,6 @@ jobs:
   test-and-build:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-
     steps:
       - name: Check out source
         uses: actions/checkout@v6
@@ -48,6 +47,7 @@ jobs:
 
       - name: Frontend tests and build
         run: |
+          npm run verify:telemetry:release
           npm test
           npm run build
 

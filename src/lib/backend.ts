@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { ColmapAccelerationStatus, EngineStatus, FramePlan, GaussianExportProgress, GaussianExportResult, GaussianPreviewDescriptor, GaussianTransform, GaussianVideoExportResult, GaussianVideoExportSession, PipelineEvent, PipelineResult, ProjectOverview, ProjectSummary, Quality, VideoInfo } from "../types/pipeline";
+import type { TelemetryPreferences } from "../types/telemetry";
 import { previewAssetUrl } from "./previewAssetUrl";
 
 const inTauri = () => "__TAURI_INTERNALS__" in window;
@@ -27,6 +28,8 @@ export async function setProjectsRoot(projectsRoot: string): Promise<{ projectsR
 export async function startPipeline(path: string, quality: Quality, projectsRoot: string): Promise<PipelineResult> { return invoke("start_pipeline", { path, quality, projectsRoot }); }
 export async function cancelPipeline(): Promise<void> { return invoke("cancel_pipeline"); }
 export async function onPipelineEvent(handler: (event: PipelineEvent) => void): Promise<UnlistenFn> { return listen<PipelineEvent>("pipeline-event", ({ payload }) => handler(payload)); }
+export async function initializeTelemetry(): Promise<TelemetryPreferences> { return invoke("initialize_telemetry"); }
+export async function setTelemetryConsent(enabled: boolean): Promise<TelemetryPreferences> { return invoke("set_telemetry_consent", { enabled }); }
 
 export async function prepareGaussianPreview(projectId: string): Promise<GaussianPreviewDescriptor & { assetUrl: string }> {
   const descriptor = await invoke<GaussianPreviewDescriptor>("prepare_gaussian_preview", { projectId });

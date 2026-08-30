@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   prepareGaussianPreview: vi.fn(),
   releaseGaussianPreview: vi.fn(),
   getProjectOverview: vi.fn(),
+  initializeTelemetry: vi.fn(),
+  setTelemetryConsent: vi.fn(),
   notifyPreviewDisposed: vi.fn(),
 }));
 
@@ -19,6 +21,7 @@ vi.mock("../lib/backend", () => ({
   checkEngines: vi.fn().mockResolvedValue([]),
   confirmAndDeleteProject: vi.fn().mockResolvedValue(false),
   getProjectOverview: mocks.getProjectOverview,
+  initializeTelemetry: mocks.initializeTelemetry,
   onPipelineEvent: vi.fn().mockResolvedValue(() => undefined),
   prepareGaussianPreview: mocks.prepareGaussianPreview,
   probeAndPlan: vi.fn(),
@@ -27,6 +30,7 @@ vi.mock("../lib/backend", () => ({
   selectProjectsRoot: vi.fn(),
   selectVideo: vi.fn(),
   setProjectsRoot: vi.fn(),
+  setTelemetryConsent: mocks.setTelemetryConsent,
   startPipeline: vi.fn(),
 }));
 
@@ -83,6 +87,8 @@ describe("App preview workspace", () => {
     mocks.prepareGaussianPreview.mockReset();
     mocks.releaseGaussianPreview.mockReset().mockResolvedValue(undefined);
     mocks.getProjectOverview.mockReset().mockResolvedValue({ projectsRoot: "E:\\Projects", projects: [project] });
+    mocks.initializeTelemetry.mockReset().mockResolvedValue({ analyticsEnabled: true, consentDecided: true, deliveryStatus: "configured" });
+    mocks.setTelemetryConsent.mockReset().mockResolvedValue({ analyticsEnabled: true, consentDecided: true, deliveryStatus: "configured" });
     mocks.notifyPreviewDisposed.mockReset().mockImplementation((callback: (projectId: string) => void, projectId: string) => {
       queueMicrotask(() => callback(projectId));
     });
