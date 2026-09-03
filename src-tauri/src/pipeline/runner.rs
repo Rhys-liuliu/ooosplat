@@ -487,14 +487,14 @@ impl PipelineRunner {
 
         if state.matching_complete {
             self.events
-                .stage(PipelineStage::Matching, 1.0, "已复用顺序匹配检查点");
+                .stage(PipelineStage::Matching, 1.0, "已复用跨视角匹配检查点");
         } else {
             self.events.stage(
                 PipelineStage::Matching,
                 0.0,
-                format!("COLMAP 正在进行 {backend_label} 顺序匹配"),
+                format!("COLMAP 正在进行 {backend_label} 跨视角匹配"),
             );
-            colmap::match_sequential(
+            colmap::match_exhaustive(
                 &self.engines.colmap,
                 &database,
                 colmap_log.clone(),
@@ -510,9 +510,10 @@ impl PipelineRunner {
             .await?;
             state.stage = PipelineStage::Matching;
             state.matching_complete = true;
+            state.matching_strategy_version = 1;
             project_manager.write_state(&paths.state, &state).await?;
             self.events
-                .stage(PipelineStage::Matching, 1.0, "顺序匹配完成");
+                .stage(PipelineStage::Matching, 1.0, "跨视角匹配完成");
         }
 
         if state.reconstruction_complete {
@@ -1021,7 +1022,8 @@ async fn normalize_checkpoints(paths: &ProjectPaths, state: &mut PipelineStateFi
 
     state.features_complete =
         frames_complete && state.features_complete && paths.colmap.join("database.db").is_file();
-    state.matching_complete = state.features_complete && state.matching_complete;
+    state.matching_complete =
+        state.features_complete && state.matching_complete && state.matching_strategy_version == 1;
     state.reconstruction_complete = state.matching_complete
         && state.reconstruction_complete
         && best_sparse_model(&paths.frames, &paths.colmap.join("sparse")).is_ok();
