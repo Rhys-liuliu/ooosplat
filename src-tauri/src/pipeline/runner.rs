@@ -520,14 +520,18 @@ impl PipelineRunner {
                 .stage(PipelineStage::Reconstructing, 1.0, "已复用相机重建检查点");
         } else {
             reset_directory(&sparse).await?;
-            self.events
-                .stage(PipelineStage::Reconstructing, 0.0, "正在增量重建相机轨迹");
-            colmap::map(
+            let global_sparse = sparse.join("global");
+            self.events.stage(
+                PipelineStage::Reconstructing,
+                0.0,
+                "正在使用 Global Mapper 快速重建相机轨迹",
+            );
+            let global_result = colmap::map_global(
                 &self.engines.colmap,
                 &database,
                 colmap_images,
-                &sparse,
-                colmap_log,
+                &global_sparse,
+                colmap_log.clone(),
                 &self.process_manager,
                 Some(self.process_observer(
                     PipelineStage::Reconstructing,
@@ -535,13 +539,101 @@ impl PipelineRunner {
                     Some(prepared.extracted_frames),
                     ObserverMode::Mapper,
                 )),
+                gpu_index,
             )
-            .await?;
+            .await;
+
+            let global_report = match global_result {
+                Ok(()) => best_sparse_model(&paths.frames, &global_sparse).ok(),
+                Err(SplatError::Cancelled) => return Err(SplatError::Cancelled),
+                Err(error) => {
+                    self.events.send(
+                        PipelineStage::Reconstructing,
+                        Some(PipelineEngine::Colmap),
+                        EventKind::Log,
+                        EventLevel::Warning,
+                        None,
+                        false,
+                        format!("Global Mapper 不可用，将回退增量重建：{error}"),
+                        None,
+                        None,
+                        None,
+                    );
+                    None
+                }
+            };
+            let global_is_good = global_report
+                .as_ref()
+                .is_some_and(|(_, report)| report.quality == ReconstructionQuality::Good);
+            if !global_is_good {
+                if let Some((_, report)) = &global_report {
+                    self.events.send(
+                        PipelineStage::Reconstructing,
+                        Some(PipelineEngine::Colmap),
+                        EventKind::Log,
+                        EventLevel::Warning,
+                        None,
+                        false,
+                        format!(
+                            "Global Mapper 注册率 {:.1}%，正在回退增量重建",
+                            report.registered_ratio * 100.0
+                        ),
+                        None,
+                        None,
+                        None,
+                    );
+                }
+                let incremental_sparse = sparse.join("incremental");
+                self.events.stage(
+                    PipelineStage::Reconstructing,
+                    0.05,
+                    "正在使用增量 Mapper 进行稳健回退",
+                );
+                let incremental_result = colmap::map_incremental(
+                    &self.engines.colmap,
+                    &database,
+                    colmap_images,
+                    &incremental_sparse,
+                    colmap_log,
+                    &self.process_manager,
+                    Some(self.process_observer(
+                        PipelineStage::Reconstructing,
+                        PipelineEngine::Colmap,
+                        Some(prepared.extracted_frames),
+                        ObserverMode::Mapper,
+                    )),
+                )
+                .await;
+                if let Err(error) = incremental_result {
+                    if matches!(error, SplatError::Cancelled) || global_report.is_none() {
+                        return Err(error);
+                    }
+                    self.events.send(
+                        PipelineStage::Reconstructing,
+                        Some(PipelineEngine::Colmap),
+                        EventKind::Log,
+                        EventLevel::Warning,
+                        None,
+                        false,
+                        "增量重建失败，继续使用可用的 Global Mapper 结果",
+                        None,
+                        None,
+                        None,
+                    );
+                }
+            }
             state.stage = PipelineStage::Reconstructing;
             state.reconstruction_complete = true;
             project_manager.write_state(&paths.state, &state).await?;
-            self.events
-                .stage(PipelineStage::Reconstructing, 1.0, "增量重建完成");
+            self.events.stage(
+                PipelineStage::Reconstructing,
+                1.0,
+                if global_is_good {
+                    "Global Mapper 快速重建完成"
+                } else {
+                    "相机轨迹重建完成"
+                },
+            );
         }
 
         self.events.stage(
@@ -558,7 +650,7 @@ impl PipelineRunner {
                 report.registered_ratio * 100.0
             )));
         }
-        let warning = (report.quality == ReconstructionQuality::Warning).then(|| {
+        let mut warning = (report.quality == ReconstructionQuality::Warning).then(|| {
             format!(
                 "注册率 {:.1}%：低于 80%，结果质量可能受影响",
                 report.registered_ratio * 100.0
@@ -573,7 +665,11 @@ impl PipelineRunner {
             ),
         );
 
-        let preset = quality.preset();
+        let total_vram_mb = acceleration
+            .device
+            .as_ref()
+            .and_then(|device| device.total_memory_mb);
+        let preset = quality.preset().for_vram_mb(total_vram_mb);
         let candidate = if state.brush_complete {
             self.events.stage(
                 PipelineStage::TrainingSplats,
@@ -593,28 +689,70 @@ impl PipelineRunner {
                 None,
                 true,
                 format!(
-                    "Brush 训练开始（使用可用图形后端）· {} iterations · 最大分辨率 {}",
-                    preset.brush_iterations, preset.brush_max_resolution
+                    "Brush 训练开始 · {} iterations · 最大分辨率 {} · 最多 {} Splats · SH {}",
+                    preset.brush_iterations,
+                    preset.brush_max_resolution,
+                    preset.brush_max_splats,
+                    preset.brush_sh_degree
                 ),
                 Some(0),
                 Some(preset.brush_iterations as u64),
                 Some("iterations"),
             );
-            let candidate = brush::train(
+            let observer = self.process_observer(
+                PipelineStage::TrainingSplats,
+                PipelineEngine::Brush,
+                Some(preset.brush_iterations as u64),
+                ObserverMode::Brush,
+            );
+            let first_attempt = brush::train(
                 &self.engines.brush,
                 &dataset,
                 &paths.brush,
                 preset,
                 paths.logs.join("brush.log"),
                 &self.process_manager,
-                Some(self.process_observer(
-                    PipelineStage::TrainingSplats,
-                    PipelineEngine::Brush,
-                    Some(preset.brush_iterations as u64),
-                    ObserverMode::Brush,
-                )),
+                Some(observer.clone()),
             )
-            .await?;
+            .await;
+            let candidate = match first_attempt {
+                Ok(candidate) => candidate,
+                Err(error) if brush::is_out_of_memory(&error) => {
+                    let retry = preset.degraded_for_oom();
+                    warning = Some(match warning {
+                        Some(existing) => {
+                            format!("{existing}；训练曾遇到显存不足，已自动降低分辨率和 Splat 上限")
+                        }
+                        None => "训练曾遇到显存不足，已自动降低分辨率和 Splat 上限".into(),
+                    });
+                    self.events.send(
+                        PipelineStage::TrainingSplats,
+                        Some(PipelineEngine::Brush),
+                        EventKind::Stage,
+                        EventLevel::Warning,
+                        None,
+                        true,
+                        format!(
+                            "显存不足，自动重试 · 最大分辨率 {} · 最多 {} Splats",
+                            retry.brush_max_resolution, retry.brush_max_splats
+                        ),
+                        Some(0),
+                        Some(retry.brush_iterations as u64),
+                        Some("iterations"),
+                    );
+                    brush::train(
+                        &self.engines.brush,
+                        &dataset,
+                        &paths.brush,
+                        retry,
+                        paths.logs.join("brush.log"),
+                        &self.process_manager,
+                        Some(observer),
+                    )
+                    .await?
+                }
+                Err(error) => return Err(error),
+            };
             state.stage = PipelineStage::TrainingSplats;
             state.brush_complete = true;
             project_manager.write_state(&paths.state, &state).await?;
@@ -952,11 +1090,20 @@ async fn reset_directory(path: &Path) -> Result<()> {
 
 fn best_sparse_model(frames: &Path, sparse: &Path) -> Result<(PathBuf, ReconstructionReport)> {
     let mut best: Option<(PathBuf, ReconstructionReport)> = None;
+    let mut candidates = vec![sparse.to_path_buf()];
     for entry in std::fs::read_dir(sparse)? {
         let path = entry?.path();
-        if !path.is_dir() {
-            continue;
+        if path.is_dir() {
+            candidates.push(path.clone());
+            for nested in std::fs::read_dir(path)? {
+                let nested = nested?.path();
+                if nested.is_dir() {
+                    candidates.push(nested);
+                }
+            }
         }
+    }
+    for path in candidates {
         if let Ok(report) = ReconstructionValidator::validate(frames, &path) {
             if best
                 .as_ref()

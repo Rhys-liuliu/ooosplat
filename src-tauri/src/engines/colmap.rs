@@ -238,6 +238,18 @@ pub async fn map(
     manager: &ProcessManager,
     observer: Option<ProcessObserver>,
 ) -> Result<()> {
+    map_incremental(executable, database, images, output, log, manager, observer).await
+}
+
+pub async fn map_incremental(
+    executable: &Path,
+    database: &Path,
+    images: &Path,
+    output: &Path,
+    log: PathBuf,
+    manager: &ProcessManager,
+    observer: Option<ProcessObserver>,
+) -> Result<()> {
     tokio::fs::create_dir_all(output).await?;
     run_colmap(
         executable,
@@ -250,6 +262,56 @@ pub async fn map(
             "--output_path".into(),
             output.into(),
         ],
+        database.parent().unwrap_or(output),
+        log,
+        manager,
+        observer,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn map_global(
+    executable: &Path,
+    database: &Path,
+    images: &Path,
+    output: &Path,
+    log: PathBuf,
+    manager: &ProcessManager,
+    observer: Option<ProcessObserver>,
+    gpu_index: Option<u32>,
+) -> Result<()> {
+    let help = command_help(executable, "global_mapper", manager).await?;
+    if !help.contains("--GlobalMapper.gp_use_gpu") {
+        return Err(SplatError::UnsupportedEngine(
+            "当前 COLMAP 不包含 Global Mapper".into(),
+        ));
+    }
+    tokio::fs::create_dir_all(output).await?;
+    let mut args = vec![
+        "global_mapper".into(),
+        "--database_path".into(),
+        database.into(),
+        "--image_path".into(),
+        images.into(),
+        "--output_path".into(),
+        output.into(),
+        "--GlobalMapper.gp_use_gpu".into(),
+        (if gpu_index.is_some() { "1" } else { "0" }).into(),
+        "--GlobalMapper.ba_ceres_use_gpu".into(),
+        (if gpu_index.is_some() { "1" } else { "0" }).into(),
+    ];
+    if let Some(index) = gpu_index {
+        args.extend([
+            "--GlobalMapper.gp_gpu_index".into(),
+            index.to_string().into(),
+            "--GlobalMapper.ba_ceres_gpu_index".into(),
+            index.to_string().into(),
+        ]);
+    }
+    run_colmap(
+        executable,
+        args,
         database.parent().unwrap_or(output),
         log,
         manager,

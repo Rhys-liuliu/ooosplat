@@ -9,7 +9,7 @@ export type AccelerationReasonCode =
   | "nvidiaSmiNotFound" | "probeFailed" | "probeTimeout" | "noNvidiaGpu"
   | "driverVersionUnknown" | "driverTooOld" | "computeCapabilityUnknown"
   | "computeCapabilityTooLow";
-export interface GpuDeviceInfo { index: number; name: string; driverVersion: string; computeCapability: string; }
+export interface GpuDeviceInfo { index: number; name: string; driverVersion: string; computeCapability: string; totalMemoryMb?: number; }
 export interface AccelerationRequirements { minimumDriverVersion: string; minimumComputeCapability: string; }
 export interface ColmapAccelerationStatus {
   backend: ColmapBackend;
