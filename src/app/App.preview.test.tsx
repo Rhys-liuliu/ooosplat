@@ -83,7 +83,7 @@ describe("App preview workspace", () => {
     useGaussianTransformStore.getState().close();
     useAppStore.setState({
       videoPath: null, projectsRoot: "E:\\Projects", projects: [], quality: "balanced", colmapAcceleration: null,
-      video: null, plan: null, engines: [], phase: "idle", progress: 0, progressMessage: "",
+      video: null, plan: null, estimate: null, engines: [], phase: "idle", progress: 0, progressMessage: "",
       latestEvent: null, events: [], result: null, error: null,
     });
     mocks.prepareGaussianPreview.mockReset();
